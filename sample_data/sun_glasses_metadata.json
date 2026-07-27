@@ -1,0 +1,46 @@
+[
+  {
+    "image_filename": "sun glasses.png",
+    "title": "Cool Day Animated - Dragon Sunglasses Sun Graphic",
+    "main_tag": "cool day sun",
+    "supporting_tags": [
+      "dragon sunglasses",
+      "animated sun",
+      "cool day",
+      "mascot logo",
+      "sun with glasses",
+      "fiery sun",
+      "summer vibes",
+      "vector art",
+      "dragon horns",
+      "solar flames",
+      "dark blue background",
+      "sticker design"
+    ],
+    "description": "A vibrant graphic design featuring a smiling animated sun wearing dark sunglasses styled with green dragon horns, scales, and glowing eyes. Dynamic solar flames burst outward against a dark navy blue background, anchored by bold typography that reads 'COOL DAY ANIMATED' framed with stylized ocean waves.",
+    "background_color": "#0b192e",
+    "is_mature": "No",
+    "is_public": "Public",
+    "enable_all_products": "Yes"
+  },
+  {
+    "image_filename": "matrix panda.png",
+    "title": "Matrix Panda - Digital Binary Art",
+    "main_tag": "matrix panda",
+    "supporting_tags": [
+      "panda",
+      "matrix",
+      "binary",
+      "code",
+      "digital art",
+      "green",
+      "hacker",
+      "cyberpunk"
+    ],
+    "description": "Step into the digital realm with Matrix Panda! A stunning futuristic design featuring a cyberpunk panda immersed in cascading green binary code stream matrix rain.",
+    "background_color": "#000000",
+    "is_mature": "No",
+    "is_public": "Public",
+    "enable_all_products": "Yes"
+  }
+]

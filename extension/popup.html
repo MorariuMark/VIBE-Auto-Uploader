@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paladium Redbubble Auto Uploader</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --primary-gradient: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #3b82f6 100%);
+      --accent-pink: #ec4899;
+      --accent-purple: #8b5cf6;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      width: 440px;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      padding: 16px;
+      font-size: 13px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 14px;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-badge {
+      background: var(--primary-gradient);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+    }
+
+    .title-group h1 {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .version-tag {
+      font-size: 10px;
+      color: var(--accent-pink);
+      font-weight: 600;
+      background: rgba(236, 72, 153, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .file-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      background: #0f172a;
+      border: 1px dashed var(--card-border);
+      border-radius: 6px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .file-input-wrapper:hover {
+      border-color: var(--accent-purple);
+    }
+
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: white;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-gradient {
+      background: var(--primary-gradient);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+
+    .btn-gradient:hover {
+      opacity: 0.95;
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.5);
+    }
+
+    .btn-secondary {
+      background: #334155;
+      color: #f8fafc;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .btn-success {
+      background: #10b981;
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .btn-warning {
+      background: #f59e0b;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+
+    .field-preview {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0f172a;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+
+    .field-key {
+      font-weight: 700;
+      color: var(--accent-pink);
+      width: 80px;
+    }
+
+    .field-val {
+      color: var(--text-main);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-right: 8px;
+    }
+
+    .btn-xs {
+      padding: 4px 8px;
+      font-size: 10px;
+      border-radius: 4px;
+    }
+
+    .toggle-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 20px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px; width: 14px;
+      left: 3px; bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background: var(--accent-pink);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+    .progress-bar-bg {
+      height: 6px;
+      background: #334155;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary-gradient);
+      transition: width 0.3s ease;
+    }
+
+    .log-box {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      height: 70px;
+      padding: 6px;
+      font-family: monospace;
+      font-size: 10px;
+      color: #38bdf8;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .item-counter {
+      font-weight: 700;
+      color: var(--accent-purple);
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-container">
+      <div class="logo-badge">AUTO UPLOADER</div>
+      <div class="title-group">
+        <h1>Redbubble Auto Uploader</h1>
+        <span class="version-tag">Manifest V3 - v1.1.2</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- JSON & CSV Batch Data Sources -->
+  <div class="card">
+    <div class="card-title">📁 Batch Data Sources (JSON Default)</div>
+    <div class="file-input-group">
+      <!-- Primary: JSON File -->
+      <div class="file-input-wrapper" style="border-color: var(--accent-purple);">
+        <input type="file" id="jsonFileInput" accept=".json">
+        <span class="file-label" id="jsonFileLabel">📄 Select JSON Metadata File (Default)...</span>
+      </div>
+      
+      <!-- Primary: JSON Paste Text -->
+      <div style="display:flex; gap:6px;">
+        <textarea id="jsonPasteInput" rows="2" style="flex:1; background:#0f172a; border:1px solid var(--card-border); border-radius:6px; color:#f8fafc; font-size:10px; font-family:monospace; padding:6px; resize:none;" placeholder="Or paste raw JSON array here..."></textarea>
+        <button class="btn btn-secondary btn-xs" id="parseJsonTextBtn" style="white-space:nowrap;">Load JSON</button>
+      </div>
+
+      <!-- Secondary: CSV File -->
+      <div class="file-input-wrapper">
+        <input type="file" id="csvFileInput" accept=".csv">
+        <span class="file-label" id="csvFileLabel">📊 Secondary: Select CSV File...</span>
+      </div>
+
+      <!-- PNG Image Files -->
+      <div class="file-input-wrapper">
+        <input type="file" id="pngFilesInput" accept=".png" multiple>
+        <span class="file-label" id="pngFilesLabel">🖼️ Select PNG Design Images...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Extracted Metadata Inspector & Field Buttons -->
+  <div class="card">
+    <div class="nav-controls">
+      <div class="card-title" style="margin:0;">📝 Item Inspector</div>
+      <div>
+        <button class="btn btn-secondary btn-xs" id="prevItemBtn">◀</button>
+        <span class="item-counter" id="itemCounter">0 / 0</span>
+        <button class="btn btn-secondary btn-xs" id="nextItemBtn">▶</button>
+      </div>
+    </div>
+
+    <div class="field-preview" id="fieldPreview">
+      <div style="text-align: center; color: var(--text-muted); padding: 12px;">Load JSON or CSV to inspect metadata fields.</div>
+    </div>
+  </div>
+
+  <!-- Section Action Triggers -->
+  <div class="card">
+    <div class="card-title">⚡ Quick Page Action Triggers</div>
+    <div class="grid-2" style="margin-bottom: 6px;">
+      <button class="btn btn-secondary btn-xs" id="triggerEnableProducts">🔘 Enable All Products</button>
+      <button class="btn btn-secondary btn-xs" id="triggerTickMedia">🎨 Tick Media Options</button>
+    </div>
+    <div class="grid-2" style="margin-bottom: 6px;">
+      <button class="btn btn-secondary btn-xs" id="triggerDefaultOptimized">🏷️ Default: Optimized</button>
+      <button class="btn btn-secondary btn-xs" id="triggerPublicVisibility">👁️ Visibility: Public</button>
+    </div>
+    <div class="grid-2" style="margin-bottom: 6px;">
+      <button class="btn btn-secondary btn-xs" id="triggerMatureNo">🔞 Mature Content: NO</button>
+      <button class="btn btn-secondary btn-xs" id="triggerUserAgreement">📝 Tick User Agreement</button>
+    </div>
+    <button class="btn btn-gradient" style="width: 100%; margin-top: 4px;" id="triggerApplyAllForm">⚡ Apply ALL Form & Product Options Now</button>
+  </div>
+
+  <!-- Automated Batch Sequence Control -->
+  <div class="card">
+    <div class="card-title">🚀 Automated Batch Sequence</div>
+    
+    <div class="toggle-wrapper">
+      <span style="font-weight:600;">Auto Save Work (#submit-work):</span>
+      <label class="switch">
+        <input type="checkbox" id="autoSaveToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-wrapper" style="margin-top: 6px;">
+      <span style="font-weight:600; font-size:11px;" title="Ignore PNG filename matching and attach any available selected image">Filename Agnostic Mode (Ignore PNG Name):</span>
+      <label class="switch">
+        <input type="checkbox" id="filenameAgnosticToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+      <label class="switch">
+        <input type="checkbox" id="autoSaveToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="grid-3" style="margin-top: 8px; margin-bottom: 8px;">
+      <button class="btn btn-gradient" id="startBatchBtn">🚀 Start Auto</button>
+      <button class="btn btn-warning" id="pauseBatchBtn">⏸ Pause</button>
+      <button class="btn btn-danger" id="stopBatchBtn">⏹ Stop</button>
+    </div>
+
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBarFill"></div>
+    </div>
+
+    <div class="log-box" id="logBox">System initialized. Ready to load batch metadata CSV.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

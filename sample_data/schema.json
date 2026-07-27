@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AutoUploaderBatchSchema",
+  "description": "JSON Batch Dataset Schema for Redbubble Auto Uploader",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "image_filename",
+      "title"
+    ],
+    "properties": {
+      "image_filename": {
+        "type": "string",
+        "description": "Exact PNG filename (e.g. 'sun glasses.png')"
+      },
+      "title": {
+        "type": "string",
+        "description": "Product listing title"
+      },
+      "main_tag": {
+        "type": "string",
+        "description": "Primary keyword tag"
+      },
+      "supporting_tags": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "array", "items": { "type": "string" } }
+        ],
+        "description": "Secondary keywords as array or comma-separated string"
+      },
+      "tags": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "array", "items": { "type": "string" } }
+        ],
+        "description": "Combined keyword list"
+      },
+      "description": {
+        "type": "string",
+        "description": "Detailed product description text"
+      },
+      "background_color": {
+        "type": "string",
+        "description": "HEX color string e.g. '#0b192e'"
+      },
+      "is_mature": {
+        "type": "string",
+        "default": "No"
+      },
+      "is_public": {
+        "type": "string",
+        "default": "Public"
+      },
+      "enable_all_products": {
+        "type": "string",
+        "default": "Yes"
+      }
+    }
+  }
+}
