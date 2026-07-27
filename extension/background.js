@@ -1,6 +1,6 @@
-// Auto Uploader v1.1.1 - background.js
+// Auto Uploader v1.1.3 - background.js
 
-console.log("[Auto Uploader v1.1.1 Background Service Worker] Initialized.");
+console.log("[Auto Uploader v1.1.3 Background Service Worker] Initialized.");
 
 let batchState = {
   active: false,
@@ -41,7 +41,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
 
     processNextBatchItem();
-    sendResponse({ status: "Batch sequence started." });
+    sendResponse({ status: "Native extension batch sequence started." });
   } else if (request.action === 'PAUSE_BATCH') {
     batchState.paused = true;
     sendResponse({ status: "Batch sequence paused." });
@@ -53,13 +53,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
-// Process individual item in batch sequence
+// Native Browser Tab Batch Loop (No Selenium Required!)
 async function processNextBatchItem() {
   if (!batchState.active || batchState.paused) return;
 
   if (batchState.currentIndex >= batchState.items.length) {
     batchState.active = false;
-    notifyPopupProgress(batchState.currentIndex, "Batch Complete! All items processed.");
+    notifyPopupProgress(batchState.currentIndex, "🎉 Batch Complete! All items processed.");
     return;
   }
 
@@ -75,19 +75,18 @@ async function processNextBatchItem() {
     }
   }
 
-  notifyPopupProgress(batchState.currentIndex, `Processing item #${batchState.currentIndex + 1}: ${currentItem.title}`);
+  notifyPopupProgress(batchState.currentIndex, `Uploading design #${batchState.currentIndex + 1}/${batchState.items.length}: ${currentItem.title}`);
 
   // Query active tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) {
-    console.error("[Auto Uploader Background] No active tab found.");
+    console.error("[Auto Uploader Background] No active browser tab found.");
     return;
   }
 
   const uploadUrl = "https://www.redbubble.com/portfolio/images/new";
 
   function sendFormToTab(targetTabId) {
-    // Inject content script to ensure listener is active
     chrome.scripting.executeScript({
       target: { tabId: targetTabId },
       files: ['content.js']
@@ -103,18 +102,32 @@ async function processNextBatchItem() {
             console.error("[Auto Uploader Background] Send message error:", chrome.runtime.lastError.message);
           }
 
-          notifyPopupProgress(batchState.currentIndex, response?.status || "Form options applied.");
+          notifyPopupProgress(batchState.currentIndex, response?.status || "Form options applied & submitted.");
 
-          // If autoSave was true, wait for submission, then advance batch index and process next item
+          // If autoSave was true, wait for submission redirect, then load next design
           if (batchState.autoSave) {
             batchState.currentIndex++;
             chrome.storage.local.set({ batchIndex: batchState.currentIndex });
+
+            // Wait 4.5 seconds for Redbubble to save work & redirect, then load fresh upload page for next design
             setTimeout(() => {
-              processNextBatchItem();
-            }, 3500);
+              if (!batchState.active || batchState.paused) return;
+              
+              chrome.tabs.update(targetTabId, { url: uploadUrl }, (updatedTab) => {
+                function pageLoadListener(tabId, changeInfo) {
+                  if (tabId === targetTabId && changeInfo.status === 'complete') {
+                    chrome.tabs.onUpdated.removeListener(pageLoadListener);
+                    setTimeout(() => {
+                      processNextBatchItem();
+                    }, 1800);
+                  }
+                }
+                chrome.tabs.onUpdated.addListener(pageLoadListener);
+              });
+            }, 4500);
           }
         });
-      }, 500);
+      }, 600);
     });
   }
 
@@ -127,7 +140,7 @@ async function processNextBatchItem() {
           setTimeout(() => {
             if (!batchState.active || batchState.paused) return;
             sendFormToTab(tab.id);
-          }, 1500);
+          }, 1800);
         }
       }
       chrome.tabs.onUpdated.addListener(pageLoadListener);
