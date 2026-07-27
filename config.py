@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-APP_VERSION = "1.1.3"
+APP_VERSION = "1.1.6"
 
 # Base Paths
 BASE_DIR = Path(__file__).parent.resolve()

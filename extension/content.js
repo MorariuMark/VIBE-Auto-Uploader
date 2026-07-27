@@ -432,12 +432,132 @@ async function applyAllFormAndOptions(item, autoSave, imagePayload = null) {
   return { status: results.join(" | ") };
 }
 
+// 10. Floating On-Screen HUD & Visual Feedback Overlay
+function showOnScreenHUD(msg) {
+  let hud = document.getElementById('rb-uploader-hud');
+  if (!hud) {
+    hud = document.createElement('div');
+    hud.id = 'rb-uploader-hud';
+    hud.style.cssText = `
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 999999;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      color: #f8fafc;
+      border: 1px solid #8b5cf6;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+      transition: all 0.3s ease;
+    `;
+    document.body.appendChild(hud);
+  }
+  hud.innerHTML = `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> ${msg}`;
+}
+
+// Helper to click element reliably with native MouseEvents
+function forceClickElement(elem) {
+  if (!elem) return;
+  try {
+    elem.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    elem.focus?.();
+    elem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+    elem.dispatchEvent(new Event('focus', { bubbles: true }));
+    elem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+    elem.click();
+    elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  } catch (e) {
+    console.warn("[Auto Uploader] forceClickElement warning:", e);
+  }
+}
+
+// 11. Upload Loop Helpers (Post-Publish Navigation with Visual Highlights)
+function clickAddAnotherDesign() {
+  showOnScreenHUD("👉 Looking for 'Add another design' link...");
+  const links = document.querySelectorAll('a, button, span');
+  for (let link of links) {
+    const txt = (link.textContent || '').trim().toLowerCase();
+    const href = (link.getAttribute?.('href') || '').toLowerCase();
+    if (txt.includes('add another design') || href.includes('/portfolio/images/new')) {
+      link.style.outline = "3px solid #22c55e";
+      link.style.borderRadius = "4px";
+      showOnScreenHUD("✅ Clicked 'Add another design' link!");
+      forceClickElement(link);
+      return { status: "Clicked 'Add another design' link successfully." };
+    }
+  }
+
+  // Fallback: direct navigation to new work URL
+  showOnScreenHUD("➡️ Navigating to 'Add New Work'...");
+  window.location.href = "https://www.redbubble.com/portfolio/images/new";
+  return { status: "Redirected to 'Add new work' page directly." };
+}
+
+async function clickUploadNewWork(imagePayload = null) {
+  showOnScreenHUD("👉 Looking for 'Upload new work' card...");
+
+  // 1. Locate and click 'Upload new work' card
+  const candidates = document.querySelectorAll('div, button, a, span, label, h1, h2, h3');
+  let clickedCard = false;
+  for (let elem of candidates) {
+    const txt = (elem.textContent || '').trim().toLowerCase();
+    if (txt === 'upload new work' || (txt.includes('upload new work') && txt.length < 35)) {
+      const parentCard = elem.closest('div, a, button, label') || elem;
+      parentCard.style.outline = "3px solid #8b5cf6";
+      parentCard.style.borderRadius = "8px";
+      showOnScreenHUD("✅ Clicked 'Upload new work' card!");
+      forceClickElement(parentCard);
+      clickedCard = true;
+      break;
+    }
+  }
+
+  // 2. If imagePayload is provided (or retrieved from storage), attach it automatically!
+  if (!imagePayload) {
+    try {
+      const storageData = await new Promise(resolve => chrome.storage.local.get(['lastUploadedImage'], resolve));
+      if (storageData && storageData.lastUploadedImage) {
+        imagePayload = storageData.lastUploadedImage;
+      }
+    } catch (e) {}
+  }
+
+  if (imagePayload && imagePayload.base64Data) {
+    showOnScreenHUD(`🖼️ Auto-uploading saved image '${imagePayload.filename}'...`);
+    await sleep(600);
+    const attachRes = await attachImageFile(imagePayload.filename, imagePayload.mimeType, imagePayload.base64Data);
+    showOnScreenHUD(`✅ Attached image (${imagePayload.filename})! Ready for next JSON.`);
+    return { status: `Clicked 'Upload new work' and auto-attached image '${imagePayload.filename}'.` };
+  }
+
+  // Fallback: trigger file selector directly
+  const fileInput = document.querySelector('input[type="file"]');
+  if (fileInput) {
+    fileInput.click();
+    showOnScreenHUD("✅ Triggered file uploader directly!");
+    return { status: "Triggered file input directly." };
+  }
+
+  return { status: "Card 'Upload new work' clicked." };
+}
+
 // Message Listener from Popup or Background Service Worker
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   (async () => {
     let res = { status: "Invalid action" };
 
-    if (request.action === 'SET_FIELD') {
+    if (request.action === 'SHOW_HUD') {
+      showOnScreenHUD(request.message);
+      res = { status: "HUD updated." };
+    } else if (request.action === 'SET_FIELD') {
       res = setFieldValue(request.field, request.value);
     } else if (request.action === 'ATTACH_IMAGE') {
       res = await attachImageFile(request.filename, request.mimeType, request.base64Data);
@@ -455,6 +575,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       res = tickUserAgreement();
     } else if (request.action === 'APPLY_ALL_FORM') {
       res = await applyAllFormAndOptions(request.item || {}, request.autoSave, request.imagePayload);
+    } else if (request.action === 'CLICK_ADD_ANOTHER_DESIGN') {
+      res = clickAddAnotherDesign();
+    } else if (request.action === 'CLICK_UPLOAD_NEW_WORK') {
+      res = await clickUploadNewWork(request.imagePayload);
     }
 
     sendResponse(res);

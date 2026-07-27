@@ -21,6 +21,7 @@ const prevItemBtn = document.getElementById('prevItemBtn');
 const nextItemBtn = document.getElementById('nextItemBtn');
 const autoSaveToggle = document.getElementById('autoSaveToggle');
 const filenameAgnosticToggle = document.getElementById('filenameAgnosticToggle');
+const uploadLoopToggle = document.getElementById('uploadLoopToggle');
 const progressBarFill = document.getElementById('progressBarFill');
 const logBox = document.getElementById('logBox');
 
@@ -46,12 +47,15 @@ function logMsg(msg) {
 
 // Restore saved settings on popup open
 document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.local.get(['autoSaveWork', 'filenameAgnostic', 'batchItems', 'batchIndex', 'pngImages'], (data) => {
+  chrome.storage.local.get(['autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'batchItems', 'batchIndex', 'pngImages'], (data) => {
     if (data.autoSaveWork !== undefined) {
       autoSaveToggle.checked = data.autoSaveWork;
     }
     if (data.filenameAgnostic !== undefined) {
       filenameAgnosticToggle.checked = data.filenameAgnostic;
+    }
+    if (data.uploadLoop !== undefined) {
+      uploadLoopToggle.checked = data.uploadLoop;
     }
     if (data.pngImages) {
       storedPngDataMap = data.pngImages;
@@ -74,6 +78,11 @@ filenameAgnosticToggle.addEventListener('change', () => {
   chrome.storage.local.set({ filenameAgnostic: filenameAgnosticToggle.checked });
   logMsg(`Filename Agnostic Mode set to: ${filenameAgnosticToggle.checked}`);
   updateInspector();
+});
+
+uploadLoopToggle?.addEventListener('change', () => {
+  chrome.storage.local.set({ uploadLoop: uploadLoopToggle.checked });
+  logMsg(`Upload loop set to: ${uploadLoopToggle.checked}`);
 });
 
 // Resolution Helper for PNG Image Files (With Filename Agnostic Fallback)
@@ -487,7 +496,8 @@ startBatchBtn.addEventListener('click', () => {
     pngImages: storedPngDataMap,
     startIndex: currentIndex,
     autoSave: autoSaveToggle.checked,
-    filenameAgnostic: filenameAgnosticToggle.checked
+    filenameAgnostic: filenameAgnosticToggle.checked,
+    uploadLoop: uploadLoopToggle ? uploadLoopToggle.checked : true
   });
 });
 
