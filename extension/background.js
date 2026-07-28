@@ -1,60 +1,179 @@
-// Auto Uploader v1.1.6 - background.js
+// Auto Uploader v1.1.7 - background.js
 
-console.log("[Auto Uploader v1.1.6 Background Service Worker] Initialized.");
+console.log("[Auto Uploader v1.1.7 Background Service Worker] Initialized.");
+
+// IndexedDB image store for handling hundreds of image files on-demand without memory limits
+const ImageDB = {
+  dbName: 'AutoUploaderImageStore',
+  storeName: 'imageBlobs',
+  getDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(this.dbName, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+  },
+  async getRawBlob(filename) {
+    if (!filename) return null;
+    const db = await this.getDB();
+    const targetLower = filename.toLowerCase();
+    const targetStem = targetLower.replace(/\.[^/.]+$/, "");
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const store = tx.objectStore(this.storeName);
+
+      const directReq = store.get(targetLower);
+      directReq.onsuccess = () => {
+        if (directReq.result) return resolve({ filename: filename, blob: directReq.result });
+
+        const openReq = store.openCursor();
+        openReq.onsuccess = (evt) => {
+          const cursor = evt.target.result;
+          if (!cursor) return resolve(null);
+
+          const key = cursor.key.toString();
+          const keyStem = key.replace(/\.[^/.]+$/, "");
+          if (key === targetLower || keyStem === targetStem) {
+            return resolve({ filename: cursor.key, blob: cursor.value });
+          }
+          cursor.continue();
+        };
+        openReq.onerror = () => resolve(null);
+      };
+      directReq.onerror = () => resolve(null);
+    });
+  },
+  async getImagePayload(filename) {
+    const result = await this.getRawBlob(filename);
+    if (!result || !result.blob) return null;
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          filename: result.filename,
+          mimeType: result.blob.type || (result.filename.endsWith('.png') ? 'image/png' : 'image/jpeg'),
+          base64Data: e.target.result
+        });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(result.blob);
+    });
+  },
+  async getFirstAvailableImagePayload() {
+    const db = await this.getDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const req = tx.objectStore(this.storeName).openCursor();
+      req.onsuccess = (evt) => {
+        const cursor = evt.target.result;
+        if (!cursor) return resolve(null);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            filename: cursor.key,
+            mimeType: cursor.value.type || 'image/png',
+            base64Data: e.target.result
+          });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(cursor.value);
+      };
+      req.onerror = () => resolve(null);
+    });
+  }
+};
 
 let batchState = {
   active: false,
   paused: false,
   items: [],
-  pngImages: {}, // filename -> { filename, mimeType, base64Data }
   currentIndex: 0,
   autoSave: true,
   filenameAgnostic: false,
   uploadLoop: true,
-  lastUploadedImage: null
+  humanizedDelay: true
 };
 
 // Restore state on worker startup
-chrome.storage.local.get(['batchItems', 'batchIndex', 'autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'pngImages', 'lastUploadedImage'], (data) => {
+chrome.storage.local.get(['batchItems', 'batchIndex', 'autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay'], (data) => {
   if (data.batchItems) batchState.items = data.batchItems;
   if (data.batchIndex) batchState.currentIndex = data.batchIndex;
   if (data.autoSaveWork !== undefined) batchState.autoSave = data.autoSaveWork;
   if (data.filenameAgnostic !== undefined) batchState.filenameAgnostic = data.filenameAgnostic;
   if (data.uploadLoop !== undefined) batchState.uploadLoop = data.uploadLoop;
-  if (data.pngImages) batchState.pngImages = data.pngImages;
-  if (data.lastUploadedImage) batchState.lastUploadedImage = data.lastUploadedImage;
+  if (data.humanizedDelay !== undefined) batchState.humanizedDelay = data.humanizedDelay;
 });
 
-// Handle incoming control messages
+// Helper for random 1-8s humanization delay
+function getRandomDelay(minSec = 1, maxSec = 8) {
+  return Math.floor(Math.random() * (maxSec - minSec + 1) * 1000) + (minSec * 1000);
+}
+
+// Sleep helper with instant cancellation check
+function interruptibleSleep(ms) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const interval = setInterval(() => {
+      if (!batchState.active || batchState.paused) {
+        clearInterval(interval);
+        resolve(false); // Interrupted!
+      } else if (Date.now() - start >= ms) {
+        clearInterval(interval);
+        resolve(true); // Completed cleanly
+      }
+    }, 150);
+  });
+}
+
+// Handle incoming control messages (Start, Pause, Stop, Restart)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'START_BATCH') {
     batchState.active = true;
     batchState.paused = false;
-    batchState.items = request.items || [];
-    batchState.pngImages = request.pngImages || {};
-    batchState.currentIndex = request.startIndex || 0;
+    batchState.items = request.items || batchState.items || [];
+    batchState.currentIndex = request.startIndex !== undefined ? request.startIndex : batchState.currentIndex;
     batchState.autoSave = request.autoSave !== undefined ? request.autoSave : true;
     batchState.filenameAgnostic = request.filenameAgnostic !== undefined ? request.filenameAgnostic : false;
     batchState.uploadLoop = request.uploadLoop !== undefined ? request.uploadLoop : true;
+    batchState.humanizedDelay = request.humanizedDelay !== undefined ? request.humanizedDelay : true;
 
     chrome.storage.local.set({
       batchItems: batchState.items,
-      pngImages: batchState.pngImages,
       batchIndex: batchState.currentIndex,
       autoSaveWork: batchState.autoSave,
       filenameAgnostic: batchState.filenameAgnostic,
-      uploadLoop: batchState.uploadLoop
+      uploadLoop: batchState.uploadLoop,
+      humanizedDelay: batchState.humanizedDelay
     });
 
     processNextBatchItem();
-    sendResponse({ status: "Upload loop sequence started." });
+    sendResponse({ status: "Automated batch sequence started." });
   } else if (request.action === 'PAUSE_BATCH') {
     batchState.paused = true;
+    notifyPopupProgress(batchState.currentIndex, "⏸ Batch sequence paused.");
     sendResponse({ status: "Batch sequence paused." });
   } else if (request.action === 'STOP_BATCH') {
     batchState.active = false;
     batchState.paused = false;
+    notifyPopupProgress(batchState.currentIndex, "⏹ Batch sequence stopped instantly.");
     sendResponse({ status: "Batch sequence stopped." });
+  } else if (request.action === 'RESTART_BATCH') {
+    batchState.currentIndex = 0;
+    batchState.active = true;
+    batchState.paused = false;
+    batchState.items = request.items || batchState.items || [];
+    chrome.storage.local.set({ batchIndex: 0 });
+    notifyPopupProgress(0, "🔄 Restarting batch upload sequence from item #1...");
+    processNextBatchItem();
+    sendResponse({ status: "Batch sequence restarted." });
   }
   return true;
 });
@@ -73,129 +192,147 @@ function sendHUDToTab(tabId, message) {
   });
 }
 
-// Process individual item in batch sequence
+// Process individual item in batch sequence automatically
 async function processNextBatchItem() {
   if (!batchState.active || batchState.paused) return;
 
   if (batchState.currentIndex >= batchState.items.length) {
     batchState.active = false;
-    notifyPopupProgress(batchState.currentIndex, "🎉 Batch Complete! All items processed.");
+    notifyPopupProgress(batchState.currentIndex, "🎉 Batch Complete! All items in folder uploaded.");
     return;
   }
 
   const currentItem = batchState.items[batchState.currentIndex];
-  let imagePayload = batchState.pngImages[currentItem.image_filename] || null;
 
-  // Filename Agnostic Fallback: pick matching PNG or 1st available PNG
+  // Fetch image payload on demand from IndexedDB
+  let imagePayload = await ImageDB.getImagePayload(currentItem.image_filename);
   if (!imagePayload && batchState.filenameAgnostic) {
-    const keys = Object.keys(batchState.pngImages);
-    if (keys.length > 0) {
-      const fallbackKey = keys[batchState.currentIndex % keys.length];
-      imagePayload = batchState.pngImages[fallbackKey];
-    }
+    imagePayload = await ImageDB.getFirstAvailableImagePayload();
   }
 
-  // Save lastUploadedImage into memory & chrome.storage.local
-  if (imagePayload) {
-    batchState.lastUploadedImage = imagePayload;
-    chrome.storage.local.set({ lastUploadedImage: imagePayload });
-  }
-
-  notifyPopupProgress(batchState.currentIndex, `Uploading design #${batchState.currentIndex + 1}/${batchState.items.length}: ${currentItem.title}`);
+  notifyPopupProgress(batchState.currentIndex, `[Item ${batchState.currentIndex + 1}/${batchState.items.length}] Preparing "${currentItem.title}"...`);
 
   // Query active tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) {
     console.error("[Auto Uploader Background] No active browser tab found.");
+    batchState.active = false;
     return;
   }
 
   const uploadUrl = "https://www.redbubble.com/portfolio/images/new";
 
-  function sendFormToTab(targetTabId) {
+  async function sendFormToTab(targetTabId) {
+    if (!batchState.active || batchState.paused) return;
+
+    // Random humanized delay before filling form
+    if (batchState.humanizedDelay) {
+      const delayMs = getRandomDelay(1, 8);
+      const delaySec = (delayMs / 1000).toFixed(1);
+      sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before filling form...`);
+      notifyPopupProgress(batchState.currentIndex, `⏳ Anti-bot pause: waiting ${delaySec}s...`);
+      const ok = await interruptibleSleep(delayMs);
+      if (!ok || !batchState.active || batchState.paused) return;
+    }
+
+    sendHUDToTab(targetTabId, `⚡ Applying form for item #${batchState.currentIndex + 1}...`);
+
     chrome.scripting.executeScript({
       target: { tabId: targetTabId },
       files: ['content.js']
     }, () => {
       setTimeout(() => {
-        sendHUDToTab(targetTabId, `Form automation active for item #${batchState.currentIndex + 1}...`);
-
         chrome.tabs.sendMessage(targetTabId, {
           action: 'APPLY_ALL_FORM',
           item: currentItem,
           imagePayload: imagePayload,
           autoSave: batchState.autoSave
-        }, (response) => {
+        }, async (response) => {
           if (chrome.runtime.lastError) {
             console.error("[Auto Uploader Background] Send message error:", chrome.runtime.lastError.message);
           }
 
           notifyPopupProgress(batchState.currentIndex, response?.status || "Form options applied & submitted.");
 
-          // If autoSave was true, execute the 15-second Upload Loop Sequence
+          // If autoSave was true, proceed to Upload Loop for next item
           if (batchState.autoSave) {
-            batchState.currentIndex++;
-            chrome.storage.local.set({ batchIndex: batchState.currentIndex });
+            const nextIndex = batchState.currentIndex + 1;
+
+            if (nextIndex >= batchState.items.length) {
+              batchState.active = false;
+              notifyPopupProgress(nextIndex, "🎉 Batch Complete! All items in folder uploaded.");
+              sendHUDToTab(targetTabId, "🎉 Batch Complete! All items uploaded.");
+              return;
+            }
 
             if (batchState.uploadLoop) {
-              let countdown = 15; // Reduced from 25s to 15s per user directive
+              let countdown = 12; // Wait 12 seconds for Redbubble to publish page
               
-              const timer = setInterval(() => {
-                if (!batchState.active || batchState.paused) {
-                  clearInterval(timer);
-                  return;
-                }
-                
-                notifyPopupProgress(batchState.currentIndex - 1, `⏳ Upload Loop: ${countdown}s remaining...`);
-                sendHUDToTab(targetTabId, `⏳ Uploading design... ${countdown}s remaining for publish banner`);
-
+              while (countdown > 0) {
+                if (!batchState.active || batchState.paused) return;
+                notifyPopupProgress(batchState.currentIndex, `⏳ Waiting ${countdown}s for Redbubble publish banner...`);
+                sendHUDToTab(targetTabId, `⏳ Design published! Waiting ${countdown}s for success banner...`);
+                const ok = await interruptibleSleep(1000);
+                if (!ok || !batchState.active || batchState.paused) return;
                 countdown--;
+              }
 
-                if (countdown < 0) {
-                  clearInterval(timer);
-                  if (!batchState.active || batchState.paused) return;
+              if (!batchState.active || batchState.paused) return;
 
-                  // Step A: Click 'Add another design' link on published page
-                  sendHUDToTab(targetTabId, "👉 Clicking 'Add another design' link...");
-                  
-                  chrome.scripting.executeScript({
-                    target: { tabId: targetTabId },
-                    files: ['content.js']
-                  }, () => {
-                    setTimeout(() => {
-                      chrome.tabs.sendMessage(targetTabId, { action: 'CLICK_ADD_ANOTHER_DESIGN' }, (addRes) => {
-                        notifyPopupProgress(batchState.currentIndex - 1, addRes?.status || "Clicked 'Add another design'");
+              // Random delay before clicking 'Add another design'
+              if (batchState.humanizedDelay) {
+                const delayMs = getRandomDelay(1, 6);
+                const delaySec = (delayMs / 1000).toFixed(1);
+                sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Add another design'...`);
+                const ok = await interruptibleSleep(delayMs);
+                if (!ok || !batchState.active || batchState.paused) return;
+              }
 
-                        // Wait 3.5s for 'Add new work' choice screen to render
-                        setTimeout(() => {
-                          if (!batchState.active || batchState.paused) return;
+              // Step A: Click 'Add another design'
+              sendHUDToTab(targetTabId, "👉 Clicking 'Add another design' link...");
+              chrome.tabs.sendMessage(targetTabId, { action: 'CLICK_ADD_ANOTHER_DESIGN' }, async (addRes) => {
+                notifyPopupProgress(batchState.currentIndex, addRes?.status || "Clicked 'Add another design'");
 
-                          // Step B: Click 'Upload new work' card & auto-attach last uploaded image!
-                          sendHUDToTab(targetTabId, "👉 Clicking 'Upload new work' & auto-attaching image...");
-                          
-                          chrome.scripting.executeScript({
-                            target: { tabId: targetTabId },
-                            files: ['content.js']
-                          }, () => {
-                            setTimeout(() => {
-                              chrome.tabs.sendMessage(targetTabId, {
-                                action: 'CLICK_UPLOAD_NEW_WORK',
-                                imagePayload: batchState.lastUploadedImage || imagePayload
-                              }, (uploadRes) => {
-                                notifyPopupProgress(batchState.currentIndex - 1, uploadRes?.status || "Clicked 'Upload new work' & attached image.");
+                // Wait 3 seconds for design choice screen to load
+                const okChoice = await interruptibleSleep(3000);
+                if (!okChoice || !batchState.active || batchState.paused) return;
 
-                                // Pause for user to manually input the next JSON and image
-                                batchState.active = false;
-                                notifyPopupProgress(batchState.currentIndex, "⏸ Placeholder image auto-attached to 'Upload new work'! Select next JSON & image to continue.");
-                              });
-                            }, 500);
-                          });
-                        }, 3500);
-                      });
-                    }, 500);
-                  });
+                // Step B: Fetch CURRENT image payload for NEXT item (#nextIndex)
+                const nextItem = batchState.items[nextIndex];
+                let nextImagePayload = await ImageDB.getImagePayload(nextItem.image_filename);
+                if (!nextImagePayload && batchState.filenameAgnostic) {
+                  nextImagePayload = await ImageDB.getFirstAvailableImagePayload();
                 }
-              }, 1000);
+
+                // Random delay before clicking 'Upload new work' card
+                if (batchState.humanizedDelay) {
+                  const delayMs = getRandomDelay(1, 6);
+                  const delaySec = (delayMs / 1000).toFixed(1);
+                  sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Upload new work'...`);
+                  const ok = await interruptibleSleep(delayMs);
+                  if (!ok || !batchState.active || batchState.paused) return;
+                }
+
+                // Click 'Upload new work' card passing CURRENT image payload for NEXT item!
+                sendHUDToTab(targetTabId, `👉 Clicking 'Upload new work' & attaching image for item #${nextIndex + 1}...`);
+
+                chrome.tabs.sendMessage(targetTabId, {
+                  action: 'CLICK_UPLOAD_NEW_WORK',
+                  imagePayload: nextImagePayload
+                }, async (uploadRes) => {
+                  notifyPopupProgress(batchState.currentIndex, uploadRes?.status || "Clicked 'Upload new work' & attached next image.");
+
+                  // Advance index to next item automatically!
+                  batchState.currentIndex = nextIndex;
+                  chrome.storage.local.set({ batchIndex: batchState.currentIndex });
+
+                  // Wait 3 seconds then process next item in cycle automatically!
+                  const okNext = await interruptibleSleep(3000);
+                  if (!okNext || !batchState.active || batchState.paused) return;
+
+                  processNextBatchItem();
+                });
+              });
             } else {
               // Direct URL refresh fallback
               setTimeout(() => {
@@ -247,3 +384,4 @@ function notifyPopupProgress(index, status) {
     // Ignore error if popup is closed
   });
 }
+

@@ -1,4 +1,111 @@
-// Auto Uploader v1.1.1 - popup.js
+// Auto Uploader v1.1.7 - popup.js
+
+// IndexedDB image store for handling hundreds of image files on-demand without memory limits
+const ImageDB = {
+  dbName: 'AutoUploaderImageStore',
+  storeName: 'imageBlobs',
+  getDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(this.dbName, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+  },
+  async saveImage(filename, fileOrBlob) {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      tx.objectStore(this.storeName).put(fileOrBlob, filename.toLowerCase());
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  },
+  async getRawBlob(filename) {
+    if (!filename) return null;
+    const db = await this.getDB();
+    const targetLower = filename.toLowerCase();
+    const targetStem = targetLower.replace(/\.[^/.]+$/, "");
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const store = tx.objectStore(this.storeName);
+
+      const directReq = store.get(targetLower);
+      directReq.onsuccess = () => {
+        if (directReq.result) return resolve({ filename: filename, blob: directReq.result });
+
+        const openReq = store.openCursor();
+        openReq.onsuccess = (evt) => {
+          const cursor = evt.target.result;
+          if (!cursor) return resolve(null);
+
+          const key = cursor.key.toString();
+          const keyStem = key.replace(/\.[^/.]+$/, "");
+          if (key === targetLower || keyStem === targetStem) {
+            return resolve({ filename: cursor.key, blob: cursor.value });
+          }
+          cursor.continue();
+        };
+        openReq.onerror = () => resolve(null);
+      };
+      directReq.onerror = () => resolve(null);
+    });
+  },
+  async getImagePayload(filename) {
+    const result = await this.getRawBlob(filename);
+    if (!result || !result.blob) return null;
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          filename: result.filename,
+          mimeType: result.blob.type || (result.filename.endsWith('.png') ? 'image/png' : 'image/jpeg'),
+          base64Data: e.target.result
+        });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(result.blob);
+    });
+  },
+  async getFirstAvailableImagePayload() {
+    const db = await this.getDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const req = tx.objectStore(this.storeName).openCursor();
+      req.onsuccess = (evt) => {
+        const cursor = evt.target.result;
+        if (!cursor) return resolve(null);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            filename: cursor.key,
+            mimeType: cursor.value.type || 'image/png',
+            base64Data: e.target.result
+          });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(cursor.value);
+      };
+      req.onerror = () => resolve(null);
+    });
+  },
+  async clear() {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      tx.objectStore(this.storeName).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  }
+};
 
 let parsedDataset = [];
 let loadedPngMap = new Map(); // filename -> File object
@@ -6,6 +113,8 @@ let storedPngDataMap = {};   // filename -> { filename, mimeType, base64Data }
 let currentIndex = 0;
 
 // DOM Elements
+const folderFileInput = document.getElementById('folderFileInput');
+const folderFileLabel = document.getElementById('folderFileLabel');
 const jsonFileInput = document.getElementById('jsonFileInput');
 const jsonFileLabel = document.getElementById('jsonFileLabel');
 const jsonPasteInput = document.getElementById('jsonPasteInput');
@@ -20,8 +129,10 @@ const itemCounter = document.getElementById('itemCounter');
 const prevItemBtn = document.getElementById('prevItemBtn');
 const nextItemBtn = document.getElementById('nextItemBtn');
 const autoSaveToggle = document.getElementById('autoSaveToggle');
+const autoStartFolderToggle = document.getElementById('autoStartFolderToggle');
 const filenameAgnosticToggle = document.getElementById('filenameAgnosticToggle');
 const uploadLoopToggle = document.getElementById('uploadLoopToggle');
+const humanizedDelayToggle = document.getElementById('humanizedDelayToggle');
 const progressBarFill = document.getElementById('progressBarFill');
 const logBox = document.getElementById('logBox');
 
@@ -38,6 +149,7 @@ const triggerApplyAllForm = document.getElementById('triggerApplyAllForm');
 const startBatchBtn = document.getElementById('startBatchBtn');
 const pauseBatchBtn = document.getElementById('pauseBatchBtn');
 const stopBatchBtn = document.getElementById('stopBatchBtn');
+const restartBatchBtn = document.getElementById('restartBatchBtn');
 
 // Helper: Log message to UI
 function logMsg(msg) {
@@ -47,9 +159,12 @@ function logMsg(msg) {
 
 // Restore saved settings on popup open
 document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.local.get(['autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'batchItems', 'batchIndex', 'pngImages'], (data) => {
+  chrome.storage.local.get(['autoSaveWork', 'autoStartFolder', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay', 'batchItems', 'batchIndex'], (data) => {
     if (data.autoSaveWork !== undefined) {
       autoSaveToggle.checked = data.autoSaveWork;
+    }
+    if (data.autoStartFolder !== undefined && autoStartFolderToggle) {
+      autoStartFolderToggle.checked = data.autoStartFolder;
     }
     if (data.filenameAgnostic !== undefined) {
       filenameAgnosticToggle.checked = data.filenameAgnostic;
@@ -57,8 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.uploadLoop !== undefined) {
       uploadLoopToggle.checked = data.uploadLoop;
     }
-    if (data.pngImages) {
-      storedPngDataMap = data.pngImages;
+    if (data.humanizedDelay !== undefined && humanizedDelayToggle) {
+      humanizedDelayToggle.checked = data.humanizedDelay;
     }
     if (data.batchItems && data.batchItems.length > 0) {
       parsedDataset = data.batchItems;
@@ -74,6 +189,11 @@ autoSaveToggle.addEventListener('change', () => {
   logMsg(`Auto Save Work set to: ${autoSaveToggle.checked}`);
 });
 
+autoStartFolderToggle?.addEventListener('change', () => {
+  chrome.storage.local.set({ autoStartFolder: autoStartFolderToggle.checked });
+  logMsg(`Auto-Start Upload on Folder Select set to: ${autoStartFolderToggle.checked}`);
+});
+
 filenameAgnosticToggle.addEventListener('change', () => {
   chrome.storage.local.set({ filenameAgnostic: filenameAgnosticToggle.checked });
   logMsg(`Filename Agnostic Mode set to: ${filenameAgnosticToggle.checked}`);
@@ -85,29 +205,10 @@ uploadLoopToggle?.addEventListener('change', () => {
   logMsg(`Upload loop set to: ${uploadLoopToggle.checked}`);
 });
 
-// Resolution Helper for PNG Image Files (With Filename Agnostic Fallback)
-function getResolvedPngFile(targetFilename) {
-  if (loadedPngMap.has(targetFilename)) {
-    return loadedPngMap.get(targetFilename);
-  }
-  if (filenameAgnosticToggle.checked && loadedPngMap.size > 0) {
-    return loadedPngMap.values().next().value;
-  }
-  return null;
-}
-
-function getResolvedPngDataObj(targetFilename) {
-  if (storedPngDataMap[targetFilename]) {
-    return storedPngDataMap[targetFilename];
-  }
-  if (filenameAgnosticToggle.checked) {
-    const keys = Object.keys(storedPngDataMap);
-    if (keys.length > 0) {
-      return storedPngDataMap[keys[0]];
-    }
-  }
-  return null;
-}
+humanizedDelayToggle?.addEventListener('change', () => {
+  chrome.storage.local.set({ humanizedDelay: humanizedDelayToggle.checked });
+  logMsg(`Humanized Pauses set to: ${humanizedDelayToggle.checked}`);
+});
 
 // JSON Parser Helper (Default Data Source)
 function parseJSONText(text) {
@@ -153,7 +254,84 @@ function parseJSONText(text) {
   });
 }
 
-// Handle JSON File Selection (Default)
+// Handle Output Folder Selection (Auto-Match JSONs & Images with IndexedDB Storage)
+folderFileInput?.addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+
+  const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Selected Folder';
+  folderFileLabel.textContent = `📁 ${folderName}`;
+  logMsg(`Scanning folder "${folderName}" (${files.length} total files)...`);
+
+  const jsonFiles = files.filter(f => f.name.toLowerCase().endsWith('.json'));
+  const imageFiles = files.filter(f => {
+    const ext = f.name.toLowerCase();
+    return ext.endsWith('.png') || ext.endsWith('.jpg') || ext.endsWith('.jpeg') || ext.endsWith('.webp');
+  });
+
+  if (jsonFiles.length === 0) {
+    logMsg(`⚠️ No JSON files found in selected folder.`);
+    return;
+  }
+
+  // 1. Store all image files into IndexedDB on-demand (No RAM limit!)
+  logMsg(`Indexing ${imageFiles.length} image files into IndexedDB...`);
+  await ImageDB.clear();
+
+  const storePromises = imageFiles.map(file => ImageDB.saveImage(file.name, file));
+  await Promise.all(storePromises);
+
+  pngFilesLabel.textContent = `🖼️ ${imageFiles.length} Images Indexed`;
+  logMsg(`Indexed ${imageFiles.length} images safely with zero RAM overhead.`);
+
+  // 2. Read and parse all JSON files
+  let aggregatedDataset = [];
+
+  const readJsonPromises = jsonFiles.map(file => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const items = parseJSONText(evt.target.result);
+        const fileStem = file.name.replace(/\.[^/.]+$/, "").toLowerCase();
+
+        items.forEach(item => {
+          if (!item.image_filename) {
+            const matchingImg = imageFiles.find(img => img.name.replace(/\.[^/.]+$/, "").toLowerCase() === fileStem);
+            if (matchingImg) {
+              item.image_filename = matchingImg.name;
+            }
+          }
+        });
+
+        aggregatedDataset.push(...items);
+        resolve();
+      };
+      reader.onerror = () => resolve();
+      reader.readAsText(file);
+    });
+  });
+
+  await Promise.all(readJsonPromises);
+
+  if (aggregatedDataset.length > 0) {
+    parsedDataset = aggregatedDataset;
+    currentIndex = 0;
+    chrome.storage.local.set({ batchItems: parsedDataset, batchIndex: 0 });
+    updateInspector();
+    logMsg(`✅ Auto-matched folder "${folderName}": ${parsedDataset.length} JSON item(s) & ${imageFiles.length} image(s).`);
+
+    if (autoStartFolderToggle && autoStartFolderToggle.checked) {
+      logMsg(`⚡ Auto-Start active! Starting automated upload sequence...`);
+      setTimeout(() => {
+        startBatchBtn.click();
+      }, 600);
+    }
+  } else {
+    logMsg(`⚠️ No valid metadata could be extracted from JSON files.`);
+  }
+});
+
+// Handle Single JSON File Selection
 jsonFileInput?.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -184,111 +362,18 @@ parseJsonTextBtn?.addEventListener('click', () => {
   logMsg(`Loaded JSON batch of ${parsedDataset.length} items from pasted text.`);
 });
 
-// CSV Parser Helper
-function parseCSVText(text) {
-  const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-  if (lines.length === 0) return [];
-  
-  function parseCSVLine(line) {
-    const result = [];
-    let cur = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          cur += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === ',' && !inQuotes) {
-        result.push(cur.trim());
-        cur = '';
-      } else {
-        cur += char;
-      }
-    }
-    result.push(cur.trim());
-    return result;
-  }
+// Handle PNG/JPG Files Selection directly
+pngFilesInput?.addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
 
-  const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
-  const rows = [];
+  await ImageDB.clear();
+  const storePromises = files.map(file => ImageDB.saveImage(file.name, file));
+  await Promise.all(storePromises);
 
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    if (values.length === 0 || (values.length === 1 && values[0] === '')) continue;
-    const row = {};
-    headers.forEach((header, idx) => {
-      row[header] = values[idx] !== undefined ? values[idx] : '';
-    });
-
-    const image_filename = row.image_filename || row.image || row.filename || row.file || '';
-    const title = row.title || row.design_title || row.name || '';
-    const main_tag = row.main_tag || row.primary_tag || row.main_keyword || (row.tags ? row.tags.split(',')[0].trim() : '');
-    const supporting_tags = row.supporting_tags || row.secondary_tags || row.tags_secondary || '';
-    const description = row.description || row.desc || row.product_description || '';
-    const background_color = row.background_color || row.hex || row.bg_color || row.color || '';
-
-    rows.push({
-      image_filename,
-      title,
-      main_tag,
-      supporting_tags,
-      description,
-      background_color
-    });
-  }
-
-  return rows;
-}
-
-// Handle CSV Selection
-csvFileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  csvFileLabel.textContent = `📄 ${file.name}`;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    parsedDataset = parseCSVText(evt.target.result);
-    currentIndex = 0;
-    chrome.storage.local.set({ batchItems: parsedDataset, batchIndex: 0 });
-    updateInspector();
-    logMsg(`Loaded CSV with ${parsedDataset.length} rows.`);
-  };
-  reader.readAsText(file);
-});
-
-// Handle PNG Files Selection & Store Base64 Map
-pngFilesInput.addEventListener('change', (e) => {
-  const files = e.target.files;
-  loadedPngMap.clear();
-  storedPngDataMap = {};
-
-  let readCount = 0;
-  for (let file of files) {
-    loadedPngMap.set(file.name, file);
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      storedPngDataMap[file.name] = {
-        filename: file.name,
-        mimeType: file.type || 'image/png',
-        base64Data: evt.target.result
-      };
-      readCount++;
-      if (readCount === files.length) {
-        chrome.storage.local.set({ pngImages: storedPngDataMap });
-        logMsg(`Loaded and stored ${files.length} PNG design images.`);
-        updateInspector();
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
-  pngFilesLabel.textContent = `🖼️ ${files.length} PNG Files Loaded`;
+  pngFilesLabel.textContent = `🖼️ ${files.length} Images Loaded`;
+  logMsg(`Loaded and stored ${files.length} design images into IndexedDB.`);
+  updateInspector();
 });
 
 // Navigation Controls
@@ -312,25 +397,20 @@ nextItemBtn.addEventListener('click', () => {
 function updateInspector() {
   if (parsedDataset.length === 0) {
     itemCounter.textContent = '0 / 0';
-    fieldPreview.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Load JSON or CSV to inspect metadata fields.</div>`;
+    fieldPreview.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Load Folder, JSON, or CSV to inspect metadata fields.</div>`;
     return;
   }
 
   itemCounter.textContent = `${currentIndex + 1} / ${parsedDataset.length}`;
   const currentItem = parsedDataset[currentIndex];
-  
-  const fileObj = getResolvedPngFile(currentItem.image_filename);
-  const storedObj = getResolvedPngDataObj(currentItem.image_filename);
-  const hasImage = !!fileObj || !!storedObj;
-  const isAgnosticFallback = filenameAgnosticToggle.checked && (!loadedPngMap.has(currentItem.image_filename) && !storedPngDataMap[currentItem.image_filename]) && hasImage;
 
   fieldPreview.innerHTML = `
     <div class="field-row">
       <span class="field-key">Image</span>
       <span class="field-val" title="${currentItem.image_filename}">
-        ${currentItem.image_filename || 'any_image.png'} ${hasImage ? (isAgnosticFallback ? '⚡ (agnostic)' : '✅') : '❌'}
+        ${currentItem.image_filename || 'any_image.png'} ✅
       </span>
-      <button class="btn btn-secondary btn-xs" id="applyImageBtn" ${hasImage ? '' : 'disabled'}>Attach</button>
+      <button class="btn btn-secondary btn-xs" id="applyImageBtn">Attach</button>
     </div>
     <div class="field-row">
       <span class="field-key">Title</span>
@@ -366,19 +446,12 @@ function updateInspector() {
   document.getElementById('applyDescBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'description', value: currentItem.description }));
   document.getElementById('applyColorBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'background_color', value: currentItem.background_color }));
 
-  document.getElementById('applyImageBtn')?.addEventListener('click', () => {
-    if (fileObj) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        sendActionToTab('ATTACH_IMAGE', {
-          filename: fileObj.name,
-          mimeType: fileObj.type || 'image/png',
-          base64Data: e.target.result
-        });
-      };
-      reader.readAsDataURL(fileObj);
-    } else if (storedObj) {
-      sendActionToTab('ATTACH_IMAGE', storedObj);
+  document.getElementById('applyImageBtn')?.addEventListener('click', async () => {
+    const payload = await ImageDB.getImagePayload(currentItem.image_filename);
+    if (payload) {
+      sendActionToTab('ATTACH_IMAGE', payload);
+    } else {
+      logMsg(`Image '${currentItem.image_filename}' not found in store.`);
     }
   });
 
@@ -387,7 +460,7 @@ function updateInspector() {
   progressBarFill.style.width = `${progressPct}%`;
 }
 
-// Send Action to Active Tab Content Script (With Auto-Injection Recovery)
+// Send Action to Active Tab Content Script
 function sendActionToTab(action, payload = {}) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (!tabs || tabs.length === 0) {
@@ -440,64 +513,47 @@ triggerPublicVisibility.addEventListener('click', () => sendActionToTab('VISIBIL
 triggerMatureNo.addEventListener('click', () => sendActionToTab('MATURE_NO'));
 triggerUserAgreement.addEventListener('click', () => sendActionToTab('TICK_AGREEMENT'));
 
-triggerApplyAllForm.addEventListener('click', () => {
+triggerApplyAllForm.addEventListener('click', async () => {
   if (parsedDataset.length === 0) {
-    logMsg('Please load a CSV/JSON dataset first.');
+    logMsg('Please load a folder or dataset first.');
     return;
   }
   const item = parsedDataset[currentIndex];
   logMsg(`Applying full form for item #${currentIndex + 1}: ${item.title}...`);
 
-  const fileObj = getResolvedPngFile(item.image_filename);
-  const storedObj = getResolvedPngDataObj(item.image_filename);
+  const imgPayload = await ImageDB.getImagePayload(item.image_filename);
 
-  function sendFormWithImagePayload(imgPayload) {
-    sendActionToTab('APPLY_ALL_FORM', {
-      item,
-      imagePayload: imgPayload,
-      autoSave: autoSaveToggle.checked
-    });
+  sendActionToTab('APPLY_ALL_FORM', {
+    item,
+    imagePayload: imgPayload,
+    autoSave: autoSaveToggle.checked
+  });
 
-    if (autoSaveToggle.checked && currentIndex < parsedDataset.length - 1) {
-      setTimeout(() => {
-        currentIndex++;
-        chrome.storage.local.set({ batchIndex: currentIndex });
-        updateInspector();
-        logMsg(`🔄 Advanced Item Inspector to Item #${currentIndex + 1}: ${parsedDataset[currentIndex].title}`);
-      }, 1500);
-    }
-  }
-
-  if (fileObj) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      sendFormWithImagePayload({
-        filename: fileObj.name,
-        mimeType: fileObj.type || 'image/png',
-        base64Data: e.target.result
-      });
-    };
-    reader.readAsDataURL(fileObj);
-  } else {
-    sendFormWithImagePayload(storedObj || null);
+  if (autoSaveToggle.checked && currentIndex < parsedDataset.length - 1) {
+    setTimeout(() => {
+      currentIndex++;
+      chrome.storage.local.set({ batchIndex: currentIndex });
+      updateInspector();
+      logMsg(`🔄 Advanced Item Inspector to Item #${currentIndex + 1}: ${parsedDataset[currentIndex].title}`);
+    }, 1500);
   }
 });
 
-// Automated Batch Runner Controls
+// Automated Batch Controls (Start, Pause/Break, Stop Instantly, Restart)
 startBatchBtn.addEventListener('click', () => {
   if (parsedDataset.length === 0) {
     logMsg('Cannot start batch: No dataset loaded.');
     return;
   }
-  logMsg('🚀 Starting automated batch sequence...');
+  logMsg('🚀 Starting automated batch upload sequence...');
   chrome.runtime.sendMessage({
     action: 'START_BATCH',
     items: parsedDataset,
-    pngImages: storedPngDataMap,
     startIndex: currentIndex,
     autoSave: autoSaveToggle.checked,
     filenameAgnostic: filenameAgnosticToggle.checked,
-    uploadLoop: uploadLoopToggle ? uploadLoopToggle.checked : true
+    uploadLoop: uploadLoopToggle ? uploadLoopToggle.checked : true,
+    humanizedDelay: humanizedDelayToggle ? humanizedDelayToggle.checked : true
   });
 });
 
@@ -507,8 +563,28 @@ pauseBatchBtn.addEventListener('click', () => {
 });
 
 stopBatchBtn.addEventListener('click', () => {
-  logMsg('⏹ Stopping batch sequence...');
+  logMsg('⏹ Stopping batch sequence instantly...');
   chrome.runtime.sendMessage({ action: 'STOP_BATCH' });
+});
+
+restartBatchBtn.addEventListener('click', () => {
+  if (parsedDataset.length === 0) {
+    logMsg('Cannot restart batch: No dataset loaded.');
+    return;
+  }
+  logMsg('🔄 Restarting batch sequence from item #1...');
+  currentIndex = 0;
+  chrome.storage.local.set({ batchIndex: 0 });
+  updateInspector();
+  chrome.runtime.sendMessage({
+    action: 'RESTART_BATCH',
+    items: parsedDataset,
+    startIndex: 0,
+    autoSave: autoSaveToggle.checked,
+    filenameAgnostic: filenameAgnosticToggle.checked,
+    uploadLoop: uploadLoopToggle ? uploadLoopToggle.checked : true,
+    humanizedDelay: humanizedDelayToggle ? humanizedDelayToggle.checked : true
+  });
 });
 
 // Listen for progress messages from background service worker
@@ -517,6 +593,6 @@ chrome.runtime.onMessage.addListener((message) => {
     currentIndex = message.index;
     chrome.storage.local.set({ batchIndex: currentIndex });
     updateInspector();
-    logMsg(`Batch item ${message.index + 1}/${parsedDataset.length}: ${message.status}`);
+    logMsg(`[Batch ${message.index + 1}/${parsedDataset.length}] ${message.status}`);
   }
 });

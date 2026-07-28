@@ -348,15 +348,21 @@
       <div class="logo-badge">AUTO UPLOADER</div>
       <div class="title-group">
         <h1>Redbubble Auto Uploader</h1>
-        <span class="version-tag">Manifest V3 - v1.1.6</span>
+        <span class="version-tag">Manifest V3 - v1.1.7</span>
       </div>
     </div>
   </div>
 
   <!-- JSON & CSV Batch Data Sources -->
   <div class="card">
-    <div class="card-title">📁 Batch Data Sources (JSON Default)</div>
+    <div class="card-title">📁 Batch Data Sources (Folder / JSON Default)</div>
     <div class="file-input-group">
+      <!-- Folder Input (Output Directory Auto-Match) -->
+      <div class="file-input-wrapper" style="border-color: var(--accent-pink); background: rgba(236, 72, 153, 0.08);">
+        <input type="file" id="folderFileInput" webkitdirectory directory multiple>
+        <span class="file-label" id="folderFileLabel" style="font-weight: 700; color: #f8fafc;">📁 Select Folder (Auto-Match JSONs & Images)...</span>
+      </div>
+
       <!-- Primary: JSON File -->
       <div class="file-input-wrapper" style="border-color: var(--accent-purple);">
         <input type="file" id="jsonFileInput" accept=".json">
@@ -377,8 +383,8 @@
 
       <!-- PNG Image Files -->
       <div class="file-input-wrapper">
-        <input type="file" id="pngFilesInput" accept=".png" multiple>
-        <span class="file-label" id="pngFilesLabel">🖼️ Select PNG Design Images...</span>
+        <input type="file" id="pngFilesInput" accept=".png,.jpg,.jpeg,.webp" multiple>
+        <span class="file-label" id="pngFilesLabel">🖼️ Select PNG/JPG Design Images...</span>
       </div>
     </div>
   </div>
@@ -395,7 +401,7 @@
     </div>
 
     <div class="field-preview" id="fieldPreview">
-      <div style="text-align: center; color: var(--text-muted); padding: 12px;">Load JSON or CSV to inspect metadata fields.</div>
+      <div style="text-align: center; color: var(--text-muted); padding: 12px;">Load Folder, JSON, or CSV to inspect metadata fields.</div>
     </div>
   </div>
 
@@ -430,6 +436,14 @@
     </div>
 
     <div class="toggle-wrapper" style="margin-top: 6px;">
+      <span style="font-weight:600; font-size:11px;" title="Automatically start batch uploading immediately when a folder is selected">Auto-Start Uploading on Folder Select:</span>
+      <label class="switch">
+        <input type="checkbox" id="autoStartFolderToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-wrapper" style="margin-top: 6px;">
       <span style="font-weight:600; font-size:11px;" title="Ignore PNG filename matching and attach any available selected image">Filename Agnostic Mode (Ignore PNG Name):</span>
       <label class="switch">
         <input type="checkbox" id="filenameAgnosticToggle">
@@ -445,17 +459,28 @@
       </label>
     </div>
 
-    <div class="grid-3" style="margin-top: 8px; margin-bottom: 8px;">
+    <div class="toggle-wrapper" style="margin-top: 6px;">
+      <span style="font-weight:600; font-size:11px;" title="Random 1-8s delays between actions to prevent anti-bot detection">Humanized Pauses (Random 1-8s Delays):</span>
+      <label class="switch">
+        <input type="checkbox" id="humanizedDelayToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="grid-2" style="margin-top: 8px; margin-bottom: 6px;">
       <button class="btn btn-gradient" id="startBatchBtn">🚀 Start Auto</button>
-      <button class="btn btn-warning" id="pauseBatchBtn">⏸ Pause</button>
-      <button class="btn btn-danger" id="stopBatchBtn">⏹ Stop</button>
+      <button class="btn btn-warning" id="pauseBatchBtn">⏸ Pause / Break</button>
+    </div>
+    <div class="grid-2" style="margin-bottom: 8px;">
+      <button class="btn btn-danger" id="stopBatchBtn">⏹ Stop Instantly</button>
+      <button class="btn btn-secondary" id="restartBatchBtn">🔄 Restart Batch</button>
     </div>
 
     <div class="progress-bar-bg">
       <div class="progress-bar-fill" id="progressBarFill"></div>
     </div>
 
-    <div class="log-box" id="logBox">System initialized. Ready to load batch metadata CSV.</div>
+    <div class="log-box" id="logBox">System initialized. Ready to load batch folder or metadata files.</div>
   </div>
 
   <script src="popup.js"></script>
