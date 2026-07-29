@@ -1,53 +1,65 @@
-# 🎨 Auto Uploader v1.1.2 - Redbubble Automation Suite
+# Auto Uploader v1.3.0 — Redbubble & TeePublic Automation Suite
 
 [![Manifest V3](https://img.shields.io/badge/Chrome_Extension-Manifest_V3-brightgreen.svg)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
-[![Playwright](https://img.shields.io/badge/Engine-Playwright-violet.svg)](https://playwright.dev/)
-[![Streamlit](https://img.shields.io/badge/GUI-Streamlit-red.svg)](https://streamlit.io/)
 
-**Auto Uploader** is a dual-engine automated asset uploading and form automation system built specifically for creators, digital artists, and print-on-demand store owners selling designs on Redbubble.
-
-It eliminates tedious manual upload tasks by automatically populating titles, primary/supporting tags, descriptions, HEX background colors, attaching design PNG images, enabling all 29 product category cards, selecting media types, declaring public visibility and mature content settings, and accepting seller agreements automatically.
+A Chrome/Brave browser extension that automates the full design upload workflow for **Redbubble** and **TeePublic** — eliminating tedious manual form-filling, product enabling, and publishing.
 
 ---
 
-## ✨ Dual-Engine Architecture
+## Features
 
-### 1. 🧩 Chrome / Brave Browser Extension (v1.1.2 - Manifest V3)
-- **Zero Cloudflare / Bot Checks**: Operates directly inside your logged-in browser tab.
-- **JSON (Default) & CSV Data Sources**: Load batch datasets via `.json` files, raw JSON paste text, or secondary `.csv` files.
-- **Filename Agnostic Mode (Optional)**: Ignore PNG filename matching in datasets to upload any selected PNG design image seamlessly.
-- **Smart React Contenteditable Handler**: Solves React synthetic event registration for contenteditable tag spans (`#main-tag-en`, `#supporting-tags-en`).
-- **Connection Recovery**: Auto-injects content scripts into active tabs when reloaded.
-
-### 2. 🐍 Streamlit + Playwright Desktop Engine
-- **Full Python Desktop GUI**: Interactive web dashboard (`app.py`).
-- **Playwright Browser Automation**: Headless or headful browser control with persistent session cookies (`session_manager.py`).
-- **Console Script Generator**: Generates standalone JavaScript bookmarklets for quick browser execution.
+- **Dual-Platform**: Supports both Redbubble (`/portfolio/images/new`) and TeePublic (`/teepublic.com/designs/*/edit`)
+- **Batch Loop**: Automatically fills forms, publishes, clicks "Upload Art", uploads the next image, and repeats until the folder is done
+- **Automatic Field Population**: Title, main tag, supporting tags (including Taggle widget API), description, background color, mature content, terms
+- **Product Toggle Engine**: Enables all OFF product categories and sets default color swatches + white background (TeePublic)
+- **Image Upload**: Attaches design images via DataTransfer API (no file dialog)
+- **JSON & CSV Input**: Metadata via JSON, raw JSON paste, or CSV
+- **Filename Agnostic Mode**: Skip PNG filename matching, attach any available image
+- **Humanized Delays**: Random 1-8s pauses between actions to evade anti-bot detection
+- **On-Screen HUD**: Visual feedback overlay during automation
+- **Pause/Stop/Restart**: Full batch control with persistent progress
 
 ---
 
-## 📐 Data Architecture Schema
+## Quick Start
 
-### JSON Schema Architecture (`sample_data/schema.json`)
-The application uses JSON array objects as its primary data format:
+1. Open `chrome://extensions` or `brave://extensions`
+2. Enable **Developer mode** (top-right)
+3. Click **Load unpacked** and select the `extension` folder
+4. Pin **Auto Uploader v1.3.0** to the toolbar
+5. Navigate to your platform's upload/edit page, open the popup, load a folder (or JSON/CSV), and click **Start Auto**
+
+### Redbubble Flow
+
+1. Extension fills fields, ticks products, sets public/mature/terms
+2. Publishes (`#submit-work`), waits 12s, clicks "Add another design", then "Upload new work"
+3. Attaches next image and loops back
+
+### TeePublic Flow
+
+1. Extension attaches image, fills fields (title, tags, description, mature NO, terms)
+2. Enables all OFF product categories, sets default colors, white background
+3. Random 3-8s delay, then clicks **Publish & Promote**
+4. Waits 10s for publish confirmation, clicks **Upload Art** button
+5. Waits 5s for upload page, attaches next image via `#design_primary_image_file`
+6. Loops to next item
+
+---
+
+## Data Schema
 
 ```json
 [
   {
-    "image_filename": "sun glasses.png",
+    "image_filename": "cool_day_dragon_sun.png",
     "title": "Cool Day Animated - Dragon Sunglasses Sun Graphic",
     "main_tag": "cool day sun",
     "supporting_tags": [
       "dragon sunglasses",
       "animated sun",
-      "cool day",
-      "mascot logo",
-      "summer vibes",
-      "solar flames",
       "sticker design"
     ],
-    "description": "A vibrant graphic design featuring a smiling animated sun wearing dark sunglasses styled with green dragon horns.",
+    "description": "A vibrant graphic design featuring a smiling animated sun wearing dark sunglasses.",
     "background_color": "#0b192e",
     "is_mature": "No",
     "is_public": "Public",
@@ -58,72 +70,50 @@ The application uses JSON array objects as its primary data format:
 
 ---
 
-## 🚀 Quick Start Guide
-
-### Option A: Installing the Chrome / Brave Extension
-1. Open your browser and navigate to `chrome://extensions` or `brave://extensions`.
-2. Enable **Developer mode** (toggle in the top-right corner).
-3. Click **Load unpacked** and select the `extension` folder from this repository.
-4. Pin **Auto Uploader v1.1.2** to your browser toolbar.
-5. Open a Redbubble upload tab (`https://www.redbubble.com/portfolio/images/new`), open the extension popup, select your JSON/CSV metadata file and PNG design images, then click **`⚡ Apply ALL Form & Product Options Now`** or **`🚀 Start Auto`**!
-
----
-
-### Option B: Running the Streamlit Desktop Companion
-1. Clone this repository and navigate into the root directory:
-   ```bash
-   git clone https://github.com/MorariuMark/Auto-Uploader.git
-   cd Auto-Uploader
-   ```
-2. Set up the virtual environment and install dependencies:
-   ```bash
-   python -m venv .venv
-   .\.venv\Scripts\activate
-   pip install -r requirements.txt
-   playwright install chromium
-   ```
-3. Launch the desktop GUI:
-   ```bash
-   streamlit run app.py
-   ```
-   *(Or double-click `run_app.bat` on Windows)*.
-
----
-
-## 📂 Repository Structure
+## Repository Structure
 
 ```
 Auto-Uploader/
-├── extension/                 # Chrome / Brave Browser Extension (Manifest V3)
-│   ├── manifest.json          # Extension Manifest v1.1.2
-│   ├── popup.html             # Extension Popup UI
-│   ├── popup.js               # Popup Logic & JSON/CSV Parser
-│   ├── content.js             # DOM Automation & React Event Injector
-│   └── background.js          # Service Worker Batch Orchestrator
-├── sample_data/               # Sample Datasets & Reference Files
-│   ├── schema.json            # JSON Schema Definition
-│   ├── sun_glasses_metadata.json # Example JSON Dataset
-│   └── cool_day_dragon_sun_metadata.csv # Example CSV Dataset
-├── app.py                     # Streamlit Desktop Dashboard
-├── uploader.py                # Playwright Automation Engine
-├── validator.py               # Pre-Flight Dataset & Image Asset Validator
-├── session_manager.py         # Browser Session & Cookie Persistence
-├── config.py                  # Central System Configuration
-├── load_extension.bat         # Extension Loader Helper Script
-├── run_app.bat                # Streamlit Launcher Script
-├── requirements.txt           # Python Package Dependencies
-└── README.md                  # System Documentation
+├── extension/                     # Chrome/Brave Extension (Manifest V3)
+│   ├── manifest.json              # Extension manifest v1.3.0
+│   ├── popup.html                 # Popup UI (Redbubble + TeePublic tabs)
+│   ├── popup.js                   # Popup logic, file parsing, batch controls
+│   ├── content.js                 # DOM automation: form fill, products, image, publish, loop
+│   ├── background.js              # Service worker: batch orchestrator, loop, IndexedDB
+│   ├── tp_enable_products.js      # Page-context script: product toggles, colors, bg
+│   └── tp_taggle_api.js           # Page-context script: Taggle widget tag insertion
+├── sample_data/                   # Sample datasets
+│   ├── schema.json                # JSON schema definition
+│   └── *.json / *.csv             # Example datasets
+├── app.py                         # (Legacy) Streamlit dashboard
+├── uploader.py                    # (Legacy) Playwright engine
+├── validator.py                   # (Legacy) Dataset validator
+├── session_manager.py             # (Legacy) Browser session manager
+├── config.py                      # (Legacy) Configuration
+└── README.md                      # This file
 ```
 
 ---
 
-## 🛠️ Requirements & Technical Specifications
+## Toggles
 
-- **Browser**: Google Chrome or Brave Browser (Manifest V3 support).
-- **Python Environment**: Python 3.10+ with `streamlit`, `playwright`, `pandas`, `Pillow`.
-- **Target Site**: Redbubble Portfolio Image Upload Interface (`/portfolio/images/new`).
+| Toggle | Description |
+|---|---|
+| **Auto Publish / Save** | Whether to auto-publish after filling the form |
+| **Upload Loop** | After publish, continue to next item in the batch |
+| **Filename Agnostic** | Ignore filename matching, use any available image |
+| **Humanized Delays** | Random 1-8s pauses between actions |
 
 ---
 
-## 📄 License
-This project is developed for personal and automated POD workflow enhancement. Distributed under the MIT License.
+## Requirements
+
+- Google Chrome or Brave Browser (Manifest V3)
+- Active logged-in session on Redbubble or TeePublic
+- No additional Python/Node dependencies needed for the extension
+
+---
+
+## License
+
+Distributed under the MIT License.

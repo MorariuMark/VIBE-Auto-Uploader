@@ -1,6 +1,6 @@
-// Auto Uploader v1.2.0 - content.js
+// Auto Uploader v1.3.0 - content.js
 
-console.log("%c[Auto Uploader v1.2.0] Content script loaded.", "color: #ec4899; font-weight: bold;");
+console.log("%c[Auto Uploader v1.3.0] Content script loaded.", "color: #ec4899; font-weight: bold;");
 
 // Utility: Sleep helper
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

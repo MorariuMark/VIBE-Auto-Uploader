@@ -1,6 +1,6 @@
-// Auto Uploader v1.2.8 - background.js
+// Auto Uploader v1.3.0 - background.js
 
-console.log("[Auto Uploader v1.2.8 Background Service Worker] Initialized.");
+console.log("[Auto Uploader v1.3.0 Background Service Worker] Initialized.");
 
 // IndexedDB image store for handling hundreds of image files on-demand without memory limits
 const ImageDB = {
