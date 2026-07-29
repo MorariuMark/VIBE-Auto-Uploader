@@ -799,6 +799,11 @@ document.getElementById('tpDebugDumpBtn')?.addEventListener('click', () => {
   sendActionToTab('TP_DEBUG_DUMP');
 });
 
+document.getElementById('tpDebugProductsBtn')?.addEventListener('click', () => {
+  tpLogMsg('🔍 Dumping product elements to console (F12)...');
+  sendActionToTab('TP_DEBUG_PRODUCTS');
+});
+
 document.getElementById('tpTriggerApplyAll')?.addEventListener('click', async () => {
   if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
   const item = parsedDataset[currentIndex];

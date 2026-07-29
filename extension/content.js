@@ -732,48 +732,56 @@ function setTeePublicFields(item) {
 
 // 3. Enable All TeePublic Product Categories & Swatches
 async function enableTeePublicProducts() {
-  let enabledCount = 0;
+  let colorCount = 0;
+  let bgCount = 0;
 
-  // 1. Click 'All' under Product Colors if available
-  const allColorBtns = document.querySelectorAll('.product-colors button, [class*="product-colors"] button, button, a');
-  allColorBtns.forEach(btn => {
-    if ((btn.textContent || '').trim().toLowerCase() === 'all') {
-      forceClickElement(btn);
+  console.log('[TP Enable] Starting...');
+
+  // 1. Set all product mockup background colors to white (#FFFFFF)
+  const bgInputs = document.querySelectorAll('input[type="text"][name*="bg_color"]');
+  console.log('[TP Enable] Found bg_color inputs:', bgInputs.length);
+  bgInputs.forEach(inp => {
+    inp.focus();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(inp, '#FFFFFF'); else inp.value = '#FFFFFF';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+    inp.dispatchEvent(new Event('blur', { bubbles: true }));
+    // Also try MiniColors API if available
+    if (window.jQuery) {
+      try { window.jQuery(inp).minicolors('value', '#FFFFFF'); } catch(e) {}
     }
+    bgCount++;
   });
 
-  // 2. Target TeePublic product enable checkboxes & switches (e.g. name="products[tshirt][enabled]")
-  const productCheckboxes = document.querySelectorAll(
-    'input[type="checkbox"][name*="products"], input[type="checkbox"][name*="[enabled]"], .products-table input[type="checkbox"], .products-selection-container input[type="checkbox"], label.switch input[type="checkbox"]'
-  );
-
-  productCheckboxes.forEach(cb => {
-    const id = (cb.id || '').toLowerCase();
-    const name = (cb.name || '').toLowerCase();
-    if (!id.includes('terms') && !name.includes('terms') && !id.includes('mature') && !name.includes('mature')) {
+  // 2. Find all additional color checkboxes directly (broader query)
+  const allColorCbs = document.querySelectorAll('input[type="checkbox"][name*="color" i]');
+  console.log('[TP Enable] Found color checkboxes:', allColorCbs.length);
+  if (allColorCbs.length > 0) {
+    // Check ALL checkboxes to ensure all colors are selected
+    allColorCbs.forEach(cb => {
       if (!cb.checked) {
         cb.checked = true;
         forceClickElement(cb);
         cb.dispatchEvent(new Event('change', { bubbles: true }));
-        cb.dispatchEvent(new Event('click', { bubbles: true }));
-        enabledCount++;
+        colorCount++;
       }
+    });
+  }
+
+  // 3. Also try the original toggle/switch approach (safe version)
+  const toggles = document.querySelectorAll('[class*="toggle" i], [class*="switch" i], [role="switch"]');
+  toggles.forEach(t => {
+    const cb = t.querySelector('input[type="checkbox"]');
+    if (cb && !cb.checked) {
+      cb.checked = true;
+      forceClickElement(t);
+      colorCount++;
     }
   });
 
-  // 3. Fallback for custom toggle switch containers / sliders
-  const offToggles = document.querySelectorAll('.slider, .switch, .off, [data-state="off"], [aria-checked="false"]');
-  offToggles.forEach(elem => {
-    const parentCb = elem.querySelector('input[type="checkbox"]') || elem.parentElement?.querySelector('input[type="checkbox"]');
-    if (parentCb && !parentCb.checked) {
-      parentCb.checked = true;
-      forceClickElement(elem);
-      parentCb.dispatchEvent(new Event('change', { bubbles: true }));
-      enabledCount++;
-    }
-  });
-
-  return { status: `Enabled TeePublic products (${enabledCount} controls toggled ON).` };
+  console.log('[TP Enable] Done:', { bgCount, colorCount });
+  return { status: `Set ${bgCount} bg colors to white, toggled ${colorCount} controls.` };
 }
 
 // 4. Publish TeePublic Form
@@ -1138,6 +1146,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
       console.table(els);
       res = { status: `🔍 Dumped ${els.length} form elements to console (F12 → Console tab).` };
+    } else if (request.action === 'TP_DEBUG_PRODUCTS') {
+      const items = [];
+      document.querySelectorAll('[class*="product" i], [id*="product" i], [name*="product" i]').forEach(el => {
+        items.push({
+          tag: el.tagName.toLowerCase(),
+          id: el.id || '',
+          name: el.name || '',
+          type: el.type || '',
+          className: (el.className || '').substring(0, 60),
+          checked: el.checked !== undefined ? el.checked : 'n/a',
+          text: (el.textContent || '').substring(0, 60)
+        });
+      });
+      console.table(items);
+      document.querySelectorAll('.product-grid, .products-table, [class*="product-list"], [class*="grid"]').forEach(el => {
+        console.log('[TP_DEBUG_PRODUCTS] Container:', el.className, el.id, 'children:', el.children.length);
+      });
+      res = { status: `🔍 Dumped ${items.length} product elements to console.` };
     }
 
     sendResponse(res);
