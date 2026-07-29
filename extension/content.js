@@ -732,56 +732,25 @@ function setTeePublicFields(item) {
 
 // 3. Enable All TeePublic Product Categories & Swatches
 async function enableTeePublicProducts() {
-  let colorCount = 0;
-  let bgCount = 0;
-
-  console.log('[TP Enable] Starting...');
-
-  // 1. Set all product mockup background colors to white (#FFFFFF)
-  const bgInputs = document.querySelectorAll('input[type="text"][name*="bg_color"]');
-  console.log('[TP Enable] Found bg_color inputs:', bgInputs.length);
-  bgInputs.forEach(inp => {
-    inp.focus();
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    if (setter) setter.call(inp, '#FFFFFF'); else inp.value = '#FFFFFF';
-    inp.dispatchEvent(new Event('input', { bubbles: true }));
-    inp.dispatchEvent(new Event('change', { bubbles: true }));
-    inp.dispatchEvent(new Event('blur', { bubbles: true }));
-    // Also try MiniColors API if available
-    if (window.jQuery) {
-      try { window.jQuery(inp).minicolors('value', '#FFFFFF'); } catch(e) {}
-    }
-    bgCount++;
+  document.body.dataset.tpProductResult = '';
+  var script = document.createElement('script');
+  script.src = chrome.runtime.getURL('tp_enable_products.js');
+  await new Promise(function(resolve) {
+    script.onload = function() {
+      script.remove();
+      resolve();
+    };
+    script.onerror = function() {
+      script.remove();
+      document.body.dataset.tpProductResult = 'load-error';
+      resolve();
+    };
+    document.body.appendChild(script);
   });
-
-  // 2. Find all additional color checkboxes directly (broader query)
-  const allColorCbs = document.querySelectorAll('input[type="checkbox"][name*="color" i]');
-  console.log('[TP Enable] Found color checkboxes:', allColorCbs.length);
-  if (allColorCbs.length > 0) {
-    // Check ALL checkboxes to ensure all colors are selected
-    allColorCbs.forEach(cb => {
-      if (!cb.checked) {
-        cb.checked = true;
-        forceClickElement(cb);
-        cb.dispatchEvent(new Event('change', { bubbles: true }));
-        colorCount++;
-      }
-    });
-  }
-
-  // 3. Also try the original toggle/switch approach (safe version)
-  const toggles = document.querySelectorAll('[class*="toggle" i], [class*="switch" i], [role="switch"]');
-  toggles.forEach(t => {
-    const cb = t.querySelector('input[type="checkbox"]');
-    if (cb && !cb.checked) {
-      cb.checked = true;
-      forceClickElement(t);
-      colorCount++;
-    }
-  });
-
-  console.log('[TP Enable] Done:', { bgCount, colorCount });
-  return { status: `Set ${bgCount} bg colors to white, toggled ${colorCount} controls.` };
+  await new Promise(function(resolve){ setTimeout(resolve, 500); });
+  var result = document.body.dataset.tpProductResult || 'timeout';
+  delete document.body.dataset.tpProductResult;
+  return { status: 'TP Products: ' + result };
 }
 
 // 4. Publish TeePublic Form

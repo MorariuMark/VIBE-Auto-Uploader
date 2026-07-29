@@ -22,6 +22,12 @@
   "background": {
     "service_worker": "background.js"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["tp_enable_products.js"],
+      "matches": ["https://*.teepublic.com/*"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [

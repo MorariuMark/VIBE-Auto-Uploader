@@ -779,31 +779,6 @@ document.getElementById('tpTriggerMatureNo')?.addEventListener('click', () => {
   sendActionToTab('TP_FILL_FORM', { item: {} });
 });
 
-document.getElementById('tpTriggerAutoPasteTags')?.addEventListener('click', () => {
-  if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
-  const item = parsedDataset[currentIndex];
-  tpLogMsg(`🏷️ Auto-pasting supporting tags (75% limit, 1s delay per tag)...`);
-  sendActionToTab('TP_AUTO_PASTE_TAGS', { supporting_tags: item.supporting_tags });
-});
-
-document.getElementById('tpApplyCustomTag')?.addEventListener('click', () => {
-  const input = document.getElementById('tpCustomTagInput');
-  const tag = input ? input.value.trim() : '';
-  if (!tag) { tpLogMsg('⚠️ Please enter a tag value.'); return; }
-  tpLogMsg(`📄 Setting supporting tags to "${tag}"...`);
-  sendActionToTab('TP_AUTO_PASTE_TAGS', { supporting_tags: tag });
-});
-
-document.getElementById('tpDebugDumpBtn')?.addEventListener('click', () => {
-  tpLogMsg('🔍 Dumping form elements to console (F12)...');
-  sendActionToTab('TP_DEBUG_DUMP');
-});
-
-document.getElementById('tpDebugProductsBtn')?.addEventListener('click', () => {
-  tpLogMsg('🔍 Dumping product elements to console (F12)...');
-  sendActionToTab('TP_DEBUG_PRODUCTS');
-});
-
 document.getElementById('tpTriggerApplyAll')?.addEventListener('click', async () => {
   if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
   const item = parsedDataset[currentIndex];
