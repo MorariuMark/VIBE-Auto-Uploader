@@ -1,6 +1,6 @@
-// Auto Uploader v1.1.7 - background.js
+// Auto Uploader v1.2.8 - background.js
 
-console.log("[Auto Uploader v1.1.7 Background Service Worker] Initialized.");
+console.log("[Auto Uploader v1.2.8 Background Service Worker] Initialized.");
 
 // IndexedDB image store for handling hundreds of image files on-demand without memory limits
 const ImageDB = {
@@ -94,6 +94,7 @@ const ImageDB = {
 let batchState = {
   active: false,
   paused: false,
+  platform: 'redbubble',
   items: [],
   currentIndex: 0,
   autoSave: true,
@@ -103,13 +104,14 @@ let batchState = {
 };
 
 // Restore state on worker startup
-chrome.storage.local.get(['batchItems', 'batchIndex', 'autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay'], (data) => {
+chrome.storage.local.get(['batchItems', 'batchIndex', 'autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay', 'activePlatform'], (data) => {
   if (data.batchItems) batchState.items = data.batchItems;
   if (data.batchIndex) batchState.currentIndex = data.batchIndex;
   if (data.autoSaveWork !== undefined) batchState.autoSave = data.autoSaveWork;
   if (data.filenameAgnostic !== undefined) batchState.filenameAgnostic = data.filenameAgnostic;
   if (data.uploadLoop !== undefined) batchState.uploadLoop = data.uploadLoop;
   if (data.humanizedDelay !== undefined) batchState.humanizedDelay = data.humanizedDelay;
+  if (data.activePlatform) batchState.platform = data.activePlatform;
 });
 
 // Helper for random 1-8s humanization delay
@@ -138,6 +140,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'START_BATCH') {
     batchState.active = true;
     batchState.paused = false;
+    batchState.platform = request.platform || 'redbubble';
     batchState.items = request.items || batchState.items || [];
     batchState.currentIndex = request.startIndex !== undefined ? request.startIndex : batchState.currentIndex;
     batchState.autoSave = request.autoSave !== undefined ? request.autoSave : true;
@@ -151,11 +154,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       autoSaveWork: batchState.autoSave,
       filenameAgnostic: batchState.filenameAgnostic,
       uploadLoop: batchState.uploadLoop,
-      humanizedDelay: batchState.humanizedDelay
+      humanizedDelay: batchState.humanizedDelay,
+      activePlatform: batchState.platform
     });
 
     processNextBatchItem();
-    sendResponse({ status: "Automated batch sequence started." });
+    sendResponse({ status: `Automated ${batchState.platform} batch sequence started.` });
   } else if (request.action === 'PAUSE_BATCH') {
     batchState.paused = true;
     notifyPopupProgress(batchState.currentIndex, "⏸ Batch sequence paused.");
@@ -169,9 +173,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     batchState.currentIndex = 0;
     batchState.active = true;
     batchState.paused = false;
+    batchState.platform = request.platform || batchState.platform || 'redbubble';
     batchState.items = request.items || batchState.items || [];
     chrome.storage.local.set({ batchIndex: 0 });
-    notifyPopupProgress(0, "🔄 Restarting batch upload sequence from item #1...");
+    notifyPopupProgress(0, `🔄 Restarting ${batchState.platform} batch upload sequence from item #1...`);
     processNextBatchItem();
     sendResponse({ status: "Batch sequence restarted." });
   }
@@ -220,7 +225,8 @@ async function processNextBatchItem() {
     return;
   }
 
-  const uploadUrl = "https://www.redbubble.com/portfolio/images/new";
+  const isTeePublic = batchState.platform === 'teepublic';
+  const uploadUrl = isTeePublic ? "https://www.teepublic.com/design/new" : "https://www.redbubble.com/portfolio/images/new";
 
   async function sendFormToTab(targetTabId) {
     if (!batchState.active || batchState.paused) return;
@@ -235,15 +241,16 @@ async function processNextBatchItem() {
       if (!ok || !batchState.active || batchState.paused) return;
     }
 
-    sendHUDToTab(targetTabId, `⚡ Applying form for item #${batchState.currentIndex + 1}...`);
+    sendHUDToTab(targetTabId, `⚡ Applying ${isTeePublic ? 'TeePublic' : 'Redbubble'} form for item #${batchState.currentIndex + 1}...`);
 
     chrome.scripting.executeScript({
       target: { tabId: targetTabId },
       files: ['content.js']
     }, () => {
       setTimeout(() => {
+        const actionType = isTeePublic ? 'TP_APPLY_ALL_FORM' : 'APPLY_ALL_FORM';
         chrome.tabs.sendMessage(targetTabId, {
-          action: 'APPLY_ALL_FORM',
+          action: actionType,
           item: currentItem,
           imagePayload: imagePayload,
           autoSave: batchState.autoSave
@@ -356,9 +363,14 @@ async function processNextBatchItem() {
     });
   }
 
-  // Navigate tab if not on upload page
-  if (!tab.url || !tab.url.includes("/portfolio/images/new")) {
-    chrome.tabs.update(tab.id, { url: uploadUrl }, () => {
+  // Navigate tab if not on relevant upload page
+  const isOnUploadPage = isTeePublic 
+    ? (tab.url && tab.url.includes("teepublic.com"))
+    : (tab.url && tab.url.includes("/portfolio/images/new"));
+
+  if (!isOnUploadPage) {
+    const fallbackUrl = isTeePublic ? "https://www.teepublic.com/uploader" : "https://www.redbubble.com/portfolio/images/new";
+    chrome.tabs.update(tab.id, { url: fallbackUrl }, () => {
       function pageLoadListener(tabId, changeInfo) {
         if (tabId === tab.id && changeInfo.status === 'complete') {
           chrome.tabs.onUpdated.removeListener(pageLoadListener);

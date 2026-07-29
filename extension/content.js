@@ -1,6 +1,6 @@
-// Auto Uploader v1.0.7 - content.js
+// Auto Uploader v1.2.0 - content.js
 
-console.log("%c[Auto Uploader v1.0.7] Content script loaded.", "color: #ec4899; font-weight: bold;");
+console.log("%c[Auto Uploader v1.2.0] Content script loaded.", "color: #ec4899; font-weight: bold;");
 
 // Utility: Sleep helper
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -549,6 +549,408 @@ async function clickUploadNewWork(imagePayload = null) {
   return { status: "Card 'Upload new work' clicked." };
 }
 
+// -------------------------------------------------------------
+// TeePublic Auto Uploader Module
+// -------------------------------------------------------------
+
+// 1. Attach Image File for TeePublic
+async function attachTeePublicImage(filename, mimeType, base64Data) {
+  try {
+    const fileInput = document.querySelector('#design_primary_image_file') ||
+                      document.querySelector('input[type="file"][name*="design"]') ||
+                      document.querySelector('input[type="file"]');
+    
+    if (!fileInput) {
+      return { status: "Error: TeePublic file uploader input not found." };
+    }
+
+    const res = await fetch(base64Data);
+    const blob = await res.blob();
+    const file = new File([blob], filename, { type: mimeType || 'image/png' });
+
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    return { status: `Success: TeePublic image ${filename} attached.` };
+  } catch (err) {
+    return { status: `Error attaching TeePublic image: ${err.message}` };
+  }
+}
+
+// 2. Set TeePublic Fields (Title, Main Tag, Supporting Tags, Description, Mature Content NO, Terms)
+function setTeePublicFields(item) {
+  const results = [];
+
+  // 1. Title
+  if (item.title) {
+    const titleSelectors = [
+      '#design_title',
+      'input[name="design[title]"]',
+      'input[name="title"]',
+      'input[placeholder="Title"]'
+    ];
+    if (setGenericField(titleSelectors, item.title)) {
+      results.push(`Title: "${item.title}"`);
+    } else {
+      results.push("Title field not found.");
+    }
+  }
+
+  // 2. Main Tag (Exact HTML ID: #design_primary_tag, Name: design[primary_tag])
+  if (item.main_tag) {
+    const mainTagSelectors = [
+      '#design_primary_tag',
+      'input[name="design[primary_tag]"]',
+      '#design_main_tag',
+      'input[name="design[main_tag]"]'
+    ];
+    if (setGenericField(mainTagSelectors, item.main_tag)) {
+      results.push(`Main Tag: "${item.main_tag}"`);
+    } else {
+      results.push("Main tag field not found.");
+    }
+  }
+
+  // 3. Supporting Tags (Exact HTML ID: #design_secondary_tags, Name: design[secondary_tags])
+  if (item.supporting_tags) {
+    let tagsList = [];
+    if (typeof item.supporting_tags === 'string') {
+      const raw = item.supporting_tags.trim();
+      if (raw.startsWith('[') && raw.endsWith(']')) {
+        try { tagsList = JSON.parse(raw); } catch (e) { tagsList = raw.split(/[,;\n]+/); }
+      } else {
+        tagsList = raw.split(/[,;\n]+/);
+      }
+    } else if (Array.isArray(item.supporting_tags)) {
+      tagsList = item.supporting_tags;
+    }
+
+    tagsList = tagsList.map(t => String(t).trim()).filter(Boolean);
+
+    // Apply 75% tag limit constraint
+    if (tagsList.length > 0) {
+      const count75 = Math.max(1, Math.ceil(tagsList.length * 0.75));
+      tagsList = tagsList.slice(0, count75);
+    }
+
+    const ta = document.querySelector(
+      '#design_secondary_tags, textarea[name="design[secondary_tags]"], #design_tag_list, #design_tags, textarea[name="design[tags]"], textarea[placeholder*="commas" i]'
+    );
+
+    let suppOk = false;
+
+    if (ta) {
+      ta.focus();
+      const proto = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+
+      let currentText = '';
+
+      // Sequence: Paste first tag -> type one comma -> repeat until last tag
+      tagsList.forEach((tag, idx) => {
+        // Step A: Paste tag
+        currentText += tag;
+        if (setter) setter.call(ta, currentText); else ta.value = currentText;
+        ta.dispatchEvent(new Event('focus', { bubbles: true }));
+        ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: tag }));
+        ta.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // Step B: Type one comma ',' (unless last tag)
+        if (idx < tagsList.length - 1) {
+          currentText += ', ';
+          if (setter) setter.call(ta, currentText); else ta.value = currentText;
+          ta.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
+          ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ',' }));
+          ta.dispatchEvent(new KeyboardEvent('keyup', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
+          ta.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+
+      ta.dispatchEvent(new Event('blur', { bubbles: true }));
+      suppOk = true;
+    } else {
+      // Direct fallback using setGenericField
+      const formatted = tagsList.join(', ');
+      suppOk = setGenericField([
+        '#design_secondary_tags',
+        'textarea[name="design[secondary_tags]"]',
+        '#design_tag_list',
+        '#design_tags',
+        'textarea[placeholder*="commas" i]'
+      ], formatted);
+    }
+
+    if (suppOk) {
+      results.push(`Supporting tags set (${tagsList.length} tags / 75%).`);
+    } else {
+      results.push("Supporting tags field not found.");
+    }
+  }
+
+  // 4. Description
+  if (item.description) {
+    const descSelectors = [
+      '#design_description',
+      'textarea[name="design[description]"]',
+      'textarea[name="description"]',
+      'textarea[placeholder*="Describe your design" i]'
+    ];
+    if (setGenericField(descSelectors, item.description)) {
+      results.push("Description set.");
+    } else {
+      results.push("Description field not found.");
+    }
+  }
+
+  // 5. Mature Content: NO (Exact HTML ID: #mature_no, Name: design[mature], Value: false)
+  const matureNoRadio = document.querySelector('#mature_no') ||
+                        document.querySelector('input[name="design[mature]"][value="false"]') ||
+                        document.querySelector('#design_is_mature_false') ||
+                        document.querySelector('input[name="design[is_mature]"][value="false"]');
+  if (matureNoRadio) {
+    matureNoRadio.checked = true;
+    forceClickElement(matureNoRadio);
+    matureNoRadio.dispatchEvent(new Event('change', { bubbles: true }));
+    matureNoRadio.dispatchEvent(new Event('click', { bubbles: true }));
+    results.push("Mature Content set to NO.");
+  } else {
+    // Label click fallback
+    let matureSet = false;
+    const labels = document.querySelectorAll('.radio-inline, label');
+    for (let lbl of labels) {
+      if (lbl.textContent.trim().toLowerCase().startsWith('no')) {
+        forceClickElement(lbl);
+        const r = lbl.querySelector('input[type="radio"]');
+        if (r) r.checked = true;
+        matureSet = true;
+        results.push("Mature Content set to NO.");
+        break;
+      }
+    }
+    if (!matureSet) results.push("Mature Content radio button not found.");
+  }
+
+  // 6. Terms Checkbox
+  const termsCb = document.querySelector('#design_terms_and_conditions, input[name="design[terms_and_conditions]"], input[type="checkbox"][name*="terms"]');
+  if (termsCb) {
+    if (!termsCb.checked) {
+      termsCb.checked = true;
+      forceClickElement(termsCb);
+    }
+    results.push("Terms & Conditions checked.");
+  }
+
+  return { status: results.join(" | ") };
+}
+
+// 3. Enable All TeePublic Product Categories & Swatches
+async function enableTeePublicProducts() {
+  let enabledCount = 0;
+
+  // 1. Click 'All' under Product Colors if available
+  const allColorBtns = document.querySelectorAll('.product-colors button, [class*="product-colors"] button, button, a');
+  allColorBtns.forEach(btn => {
+    if ((btn.textContent || '').trim().toLowerCase() === 'all') {
+      forceClickElement(btn);
+    }
+  });
+
+  // 2. Target TeePublic product enable checkboxes & switches (e.g. name="products[tshirt][enabled]")
+  const productCheckboxes = document.querySelectorAll(
+    'input[type="checkbox"][name*="products"], input[type="checkbox"][name*="[enabled]"], .products-table input[type="checkbox"], .products-selection-container input[type="checkbox"], label.switch input[type="checkbox"]'
+  );
+
+  productCheckboxes.forEach(cb => {
+    const id = (cb.id || '').toLowerCase();
+    const name = (cb.name || '').toLowerCase();
+    if (!id.includes('terms') && !name.includes('terms') && !id.includes('mature') && !name.includes('mature')) {
+      if (!cb.checked) {
+        cb.checked = true;
+        forceClickElement(cb);
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+        cb.dispatchEvent(new Event('click', { bubbles: true }));
+        enabledCount++;
+      }
+    }
+  });
+
+  // 3. Fallback for custom toggle switch containers / sliders
+  const offToggles = document.querySelectorAll('.slider, .switch, .off, [data-state="off"], [aria-checked="false"]');
+  offToggles.forEach(elem => {
+    const parentCb = elem.querySelector('input[type="checkbox"]') || elem.parentElement?.querySelector('input[type="checkbox"]');
+    if (parentCb && !parentCb.checked) {
+      parentCb.checked = true;
+      forceClickElement(elem);
+      parentCb.dispatchEvent(new Event('change', { bubbles: true }));
+      enabledCount++;
+    }
+  });
+
+  return { status: `Enabled TeePublic products (${enabledCount} controls toggled ON).` };
+}
+
+// 4. Publish TeePublic Form
+function publishTeePublicForm(autoSave) {
+  const termsCb = document.querySelector('#design_terms_and_conditions') ||
+                  document.querySelector('input[name="design[terms_and_conditions]"]') ||
+                  document.querySelector('input[type="checkbox"][name*="terms"]');
+  if (termsCb && !termsCb.checked) {
+    termsCb.click();
+  }
+
+  if (autoSave) {
+    const publishBtn = document.querySelector('#publish') ||
+                       document.querySelector('button[type="submit"]') ||
+                       document.querySelector('input[type="submit"][value*="Publish" i]') ||
+                       document.querySelector('button[class*="publish" i]');
+    if (publishBtn) {
+      publishBtn.click();
+      return { status: "🚀 TeePublic PUBLISH button clicked!" };
+    }
+    return { status: "Publish button not found." };
+  }
+  return { status: "Form filled & ready for publish (Auto-Publish disabled)." };
+}
+
+// 5. Apply ALL TeePublic Form & Options
+async function applyAllTeePublicForm(item, autoSave, imagePayload = null) {
+  const results = [];
+
+  if (imagePayload && imagePayload.base64Data) {
+    const imgRes = await attachTeePublicImage(imagePayload.filename, imagePayload.mimeType, imagePayload.base64Data);
+    results.push(imgRes.status);
+    await sleep(500);
+  }
+
+  const fieldsRes = setTeePublicFields(item);
+  results.push(fieldsRes.status);
+
+  const productsRes = await enableTeePublicProducts();
+  results.push(productsRes.status);
+
+  const publishRes = publishTeePublicForm(autoSave);
+  results.push(publishRes.status);
+
+  return { status: results.join(" | ") };
+}
+
+function findSupportingTagsElement() {
+  const searchDocs = [document];
+  const iframes = document.querySelectorAll('iframe');
+  iframes.forEach(iframe => {
+    try {
+      if (iframe.contentDocument) searchDocs.push(iframe.contentDocument);
+    } catch(e) {}
+  });
+
+  for (let doc of searchDocs) {
+    const selectors = [
+      '#design_secondary_tags',
+      'textarea[name="design[secondary_tags]"]',
+      '#design_tags',
+      '#design_tag_list',
+      'textarea[name="design[tags]"]',
+      'textarea[name="design[tag_list]"]',
+      'textarea[placeholder*="commas" i]',
+      'textarea[placeholder*="tags" i]',
+      'textarea[id*="tag" i]',
+      'textarea[name*="tag" i]'
+    ];
+
+    for (let sel of selectors) {
+      const elem = doc.querySelector(sel);
+      if (elem) return elem;
+    }
+
+    const textareas = doc.querySelectorAll('textarea');
+    for (let ta of textareas) {
+      const id = (ta.id || '').toLowerCase();
+      const name = (ta.name || '').toLowerCase();
+      const ph = (ta.placeholder || '').toLowerCase();
+      if (!id.includes('description') && !name.includes('description') && !ph.includes('describe')) {
+        return ta;
+      }
+    }
+
+    const inputs = doc.querySelectorAll('input[id*="tag" i], input[name*="tag" i]');
+    for (let inp of inputs) {
+      const id = (inp.id || '').toLowerCase();
+      const name = (inp.name || '').toLowerCase();
+      if (!id.includes('primary') && !name.includes('primary') && !id.includes('main') && !name.includes('main')) {
+        return inp;
+      }
+    }
+  }
+
+  return null;
+}
+
+// Dedicated Async Auto-Paste Tags with 1-Second Delay
+async function autoPasteTeePublicTags(supporting_tags) {
+  if (!supporting_tags) return { status: "No supporting tags provided." };
+
+  let tagsList = [];
+  if (typeof supporting_tags === 'string') {
+    const raw = supporting_tags.trim();
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      try { tagsList = JSON.parse(raw); } catch (e) { tagsList = raw.split(/[,;\n]+/); }
+    } else {
+      tagsList = raw.split(/[,;\n]+/);
+    }
+  } else if (Array.isArray(supporting_tags)) {
+    tagsList = supporting_tags;
+  }
+
+  tagsList = tagsList.map(t => String(t).trim()).filter(Boolean);
+
+  // Apply 75% limit constraint
+  if (tagsList.length > 0) {
+    const count75 = Math.max(1, Math.ceil(tagsList.length * 0.75));
+    tagsList = tagsList.slice(0, count75);
+  }
+
+  const ta = findSupportingTagsElement();
+
+  if (!ta) return { status: "Supporting tags input field not found on page." };
+
+  ta.focus();
+  const proto = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+
+  let currentText = '';
+
+  for (let i = 0; i < tagsList.length; i++) {
+    const tag = tagsList[i];
+
+    // 1. Select & Paste Tag
+    currentText += tag;
+    if (setter) setter.call(ta, currentText); else ta.value = currentText;
+    ta.dispatchEvent(new Event('focus', { bubbles: true }));
+    ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: tag }));
+    ta.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // 2. Paste Comma
+    currentText += ', ';
+    if (setter) setter.call(ta, currentText); else ta.value = currentText;
+    ta.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
+    ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ',' }));
+    ta.dispatchEvent(new KeyboardEvent('keyup', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
+    ta.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // 3. Pause 1 second before next tag (unless last tag)
+    if (i < tagsList.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+
+  ta.dispatchEvent(new Event('blur', { bubbles: true }));
+  return { status: `🏷️ Auto-pasted ${tagsList.length} tags (75%) with 1s delays.` };
+}
+
 // Message Listener from Popup or Background Service Worker
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   (async () => {
@@ -579,6 +981,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       res = clickAddAnotherDesign();
     } else if (request.action === 'CLICK_UPLOAD_NEW_WORK') {
       res = await clickUploadNewWork(request.imagePayload);
+    } else if (request.action === 'TP_ATTACH_IMAGE') {
+      res = await attachTeePublicImage(request.filename, request.mimeType, request.base64Data);
+    } else if (request.action === 'TP_FILL_FORM') {
+      res = setTeePublicFields(request.item || {});
+    } else if (request.action === 'TP_AUTO_PASTE_TAGS') {
+      res = await autoPasteTeePublicTags(request.supporting_tags || (request.item ? request.item.supporting_tags : ''));
+    } else if (request.action === 'TP_ENABLE_PRODUCTS') {
+      res = await enableTeePublicProducts();
+    } else if (request.action === 'TP_PUBLISH') {
+      res = publishTeePublicForm(request.autoSave);
+    } else if (request.action === 'TP_APPLY_ALL_FORM') {
+      res = await applyAllTeePublicForm(request.item || {}, request.autoSave, request.imagePayload);
     }
 
     sendResponse(res);

@@ -327,6 +327,46 @@
       color: var(--accent-purple);
     }
 
+    /* Platform Navigation Tabs */
+    .platform-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: var(--card-bg);
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      border-color: var(--accent-purple);
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      background: var(--primary-gradient);
+      border-color: transparent;
+      color: white;
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+    }
+
+    .tab-view.hidden {
+      display: none !important;
+    }
+
     /* Scrollbar styling */
     ::-webkit-scrollbar {
       width: 4px;
@@ -347,13 +387,24 @@
     <div class="logo-container">
       <div class="logo-badge">AUTO UPLOADER</div>
       <div class="title-group">
-        <h1>Redbubble Auto Uploader</h1>
-        <span class="version-tag">Manifest V3 - v1.1.7</span>
+        <h1 id="headerTitle">Auto Uploader Platform</h1>
+        <span class="version-tag">Manifest V3 - v1.2.8</span>
       </div>
     </div>
   </div>
 
-  <!-- JSON & CSV Batch Data Sources -->
+  <!-- Dedicated Platform Navigation Buttons -->
+  <div class="platform-tabs">
+    <button class="tab-btn active" id="tabRedbubble">
+      <span>🔴</span> Redbubble
+    </button>
+    <button class="tab-btn" id="tabTeepublic">
+      <span>👕</span> TeePublic
+    </button>
+  </div>
+
+  <!-- Redbubble Platform View -->
+  <div id="redbubbleView" class="tab-view">
   <div class="card">
     <div class="card-title">📁 Batch Data Sources (Folder / JSON Default)</div>
     <div class="file-input-group">
@@ -481,6 +532,101 @@
     </div>
 
     <div class="log-box" id="logBox">System initialized. Ready to load batch folder or metadata files.</div>
+  </div>
+  </div>
+
+  <!-- TeePublic Platform View -->
+  <div id="teepublicView" class="tab-view hidden">
+    <!-- JSON & CSV Batch Data Sources -->
+    <div class="card">
+      <div class="card-title">📁 Batch Data Sources (TeePublic)</div>
+      <div class="file-input-group">
+        <!-- Folder Input -->
+        <div class="file-input-wrapper" style="border-color: var(--accent-pink); background: rgba(236, 72, 153, 0.08);">
+          <input type="file" id="tpFolderFileInput" webkitdirectory directory multiple>
+          <span class="file-label" id="tpFolderFileLabel" style="font-weight: 700; color: #f8fafc;">📁 Select Folder (Auto-Match JSONs & Images)...</span>
+        </div>
+
+        <!-- Primary: JSON File -->
+        <div class="file-input-wrapper" style="border-color: var(--accent-purple);">
+          <input type="file" id="tpJsonFileInput" accept=".json">
+          <span class="file-label" id="tpJsonFileLabel">📄 Select JSON Metadata File...</span>
+        </div>
+
+        <!-- PNG Image Files -->
+        <div class="file-input-wrapper">
+          <input type="file" id="tpPngFilesInput" accept=".png,.jpg,.jpeg,.webp" multiple>
+          <span class="file-label" id="tpPngFilesLabel">🖼️ Select PNG/JPG Design Images...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Extracted Metadata Inspector -->
+    <div class="card">
+      <div class="nav-controls">
+        <div class="card-title" style="margin:0;">📝 TeePublic Item Inspector</div>
+        <div>
+          <button class="btn btn-secondary btn-xs" id="tpPrevItemBtn">◀</button>
+          <span class="item-counter" id="tpItemCounter">0 / 0</span>
+          <button class="btn btn-secondary btn-xs" id="tpNextItemBtn">▶</button>
+        </div>
+      </div>
+
+      <div class="field-preview" id="tpFieldPreview">
+        <div style="text-align: center; color: var(--text-muted); padding: 12px;">Load Folder or JSON to inspect TeePublic metadata.</div>
+      </div>
+    </div>
+
+    <!-- Quick Page Action Triggers -->
+    <div class="card">
+      <div class="card-title">⚡ TeePublic Page Actions</div>
+      <div class="grid-2" style="margin-bottom: 6px;">
+        <button class="btn btn-secondary btn-xs" id="tpTriggerFillForm">📝 Fill Form Metadata</button>
+        <button class="btn btn-secondary btn-xs" id="tpTriggerUploadImage">🖼️ Trigger Image Upload</button>
+      </div>
+      <div class="grid-2" style="margin-bottom: 6px;">
+        <button class="btn btn-secondary btn-xs" id="tpTriggerEnableProducts">🔘 Enable All Products</button>
+        <button class="btn btn-secondary btn-xs" id="tpTriggerMatureNo">🔞 Mature Content: NO</button>
+      </div>
+      <button class="btn btn-secondary btn-xs" style="width: 100%; margin-bottom: 6px;" id="tpTriggerAutoPasteTags">🏷️ Auto Paste Tags (1s Delay)</button>
+      <button class="btn btn-gradient" style="width: 100%; margin-top: 4px;" id="tpTriggerApplyAll">⚡ Apply TeePublic Form & Publish</button>
+    </div>
+
+    <!-- Automated Batch Sequence Control -->
+    <div class="card">
+      <div class="card-title">🚀 TeePublic Batch Sequence</div>
+      
+      <div class="toggle-wrapper">
+        <span style="font-weight:600;">Auto Publish / Save:</span>
+        <label class="switch">
+          <input type="checkbox" id="tpAutoSaveToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-wrapper" style="margin-top: 6px;">
+        <span style="font-weight:600; font-size:11px;">Humanized Delays:</span>
+        <label class="switch">
+          <input type="checkbox" id="tpHumanizedDelayToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="grid-2" style="margin-top: 8px; margin-bottom: 6px;">
+        <button class="btn btn-gradient" id="tpStartBatchBtn">🚀 Start TeePublic Auto</button>
+        <button class="btn btn-warning" id="tpPauseBatchBtn">⏸ Pause</button>
+      </div>
+      <div class="grid-2" style="margin-bottom: 8px;">
+        <button class="btn btn-danger" id="tpStopBatchBtn">⏹ Stop Instantly</button>
+        <button class="btn btn-secondary" id="tpRestartBatchBtn">🔄 Restart Batch</button>
+      </div>
+
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="tpProgressBarFill"></div>
+      </div>
+
+      <div class="log-box" id="tpLogBox">TeePublic module ready. Load metadata or batch files to start.</div>
+    </div>
   </div>
 
   <script src="popup.js"></script>

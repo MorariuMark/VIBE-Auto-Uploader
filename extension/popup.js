@@ -1,4 +1,4 @@
-// Auto Uploader v1.1.7 - popup.js
+// Auto Uploader v1.2.8 - popup.js
 
 // IndexedDB image store for handling hundreds of image files on-demand without memory limits
 const ImageDB = {
@@ -395,69 +395,127 @@ nextItemBtn.addEventListener('click', () => {
 
 // Update Inspector UI
 function updateInspector() {
+  const tpItemCounter = document.getElementById('tpItemCounter');
+  const tpFieldPreview = document.getElementById('tpFieldPreview');
+  const tpProgressBarFill = document.getElementById('tpProgressBarFill');
+
   if (parsedDataset.length === 0) {
-    itemCounter.textContent = '0 / 0';
-    fieldPreview.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Load Folder, JSON, or CSV to inspect metadata fields.</div>`;
+    if (itemCounter) itemCounter.textContent = '0 / 0';
+    if (fieldPreview) fieldPreview.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Load Folder, JSON, or CSV to inspect metadata fields.</div>`;
+    if (tpItemCounter) tpItemCounter.textContent = '0 / 0';
+    if (tpFieldPreview) tpFieldPreview.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Load Folder or JSON to inspect TeePublic metadata.</div>`;
     return;
   }
 
-  itemCounter.textContent = `${currentIndex + 1} / ${parsedDataset.length}`;
   const currentItem = parsedDataset[currentIndex];
 
-  fieldPreview.innerHTML = `
-    <div class="field-row">
-      <span class="field-key">Image</span>
-      <span class="field-val" title="${currentItem.image_filename}">
-        ${currentItem.image_filename || 'any_image.png'} ✅
-      </span>
-      <button class="btn btn-secondary btn-xs" id="applyImageBtn">Attach</button>
-    </div>
-    <div class="field-row">
-      <span class="field-key">Title</span>
-      <span class="field-val" title="${currentItem.title}">${currentItem.title || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
-      <button class="btn btn-secondary btn-xs" id="applyTitleBtn" ${currentItem.title ? '' : 'disabled'}>Apply</button>
-    </div>
-    <div class="field-row">
-      <span class="field-key">Main Tag</span>
-      <span class="field-val" title="${currentItem.main_tag}">${currentItem.main_tag || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
-      <button class="btn btn-secondary btn-xs" id="applyMainTagBtn" ${currentItem.main_tag ? '' : 'disabled'}>Apply</button>
-    </div>
-    <div class="field-row">
-      <span class="field-key">Supporting</span>
-      <span class="field-val" title="${currentItem.supporting_tags}">${currentItem.supporting_tags || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
-      <button class="btn btn-secondary btn-xs" id="applySupportingBtn" ${currentItem.supporting_tags ? '' : 'disabled'}>Apply</button>
-    </div>
-    <div class="field-row">
-      <span class="field-key">Description</span>
-      <span class="field-val" title="${currentItem.description}">${currentItem.description || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
-      <button class="btn btn-secondary btn-xs" id="applyDescBtn" ${currentItem.description ? '' : 'disabled'}>Apply</button>
-    </div>
-    <div class="field-row">
-      <span class="field-key">Color HEX</span>
-      <span class="field-val" title="${currentItem.background_color}">${currentItem.background_color || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
-      <button class="btn btn-secondary btn-xs" id="applyColorBtn" ${currentItem.background_color ? '' : 'disabled'}>Apply</button>
-    </div>
-  `;
+  // Redbubble Inspector
+  if (itemCounter) itemCounter.textContent = `${currentIndex + 1} / ${parsedDataset.length}`;
+  if (fieldPreview) {
+    fieldPreview.innerHTML = `
+      <div class="field-row">
+        <span class="field-key">Image</span>
+        <span class="field-val" title="${currentItem.image_filename}">
+          ${currentItem.image_filename || 'any_image.png'} ✅
+        </span>
+        <button class="btn btn-secondary btn-xs" id="applyImageBtn">Attach</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Title</span>
+        <span class="field-val" title="${currentItem.title}">${currentItem.title || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="applyTitleBtn" ${currentItem.title ? '' : 'disabled'}>Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Main Tag</span>
+        <span class="field-val" title="${currentItem.main_tag}">${currentItem.main_tag || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="applyMainTagBtn" ${currentItem.main_tag ? '' : 'disabled'}>Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Supporting</span>
+        <span class="field-val" title="${currentItem.supporting_tags}">${currentItem.supporting_tags || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="applySupportingBtn" ${currentItem.supporting_tags ? '' : 'disabled'}>Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Description</span>
+        <span class="field-val" title="${currentItem.description}">${currentItem.description || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="applyDescBtn" ${currentItem.description ? '' : 'disabled'}>Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Color HEX</span>
+        <span class="field-val" title="${currentItem.background_color}">${currentItem.background_color || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="applyColorBtn" ${currentItem.background_color ? '' : 'disabled'}>Apply</button>
+      </div>
+    `;
 
-  // Attach listeners to individual field buttons
-  document.getElementById('applyTitleBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'title', value: currentItem.title }));
-  document.getElementById('applyMainTagBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'main_tag', value: currentItem.main_tag }));
-  document.getElementById('applySupportingBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'supporting_tags', value: currentItem.supporting_tags }));
-  document.getElementById('applyDescBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'description', value: currentItem.description }));
-  document.getElementById('applyColorBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'background_color', value: currentItem.background_color }));
+    document.getElementById('applyTitleBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'title', value: currentItem.title }));
+    document.getElementById('applyMainTagBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'main_tag', value: currentItem.main_tag }));
+    document.getElementById('applySupportingBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'supporting_tags', value: currentItem.supporting_tags }));
+    document.getElementById('applyDescBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'description', value: currentItem.description }));
+    document.getElementById('applyColorBtn')?.addEventListener('click', () => sendActionToTab('SET_FIELD', { field: 'background_color', value: currentItem.background_color }));
 
-  document.getElementById('applyImageBtn')?.addEventListener('click', async () => {
-    const payload = await ImageDB.getImagePayload(currentItem.image_filename);
-    if (payload) {
-      sendActionToTab('ATTACH_IMAGE', payload);
-    } else {
-      logMsg(`Image '${currentItem.image_filename}' not found in store.`);
-    }
-  });
+    document.getElementById('applyImageBtn')?.addEventListener('click', async () => {
+      const payload = await ImageDB.getImagePayload(currentItem.image_filename);
+      if (payload) {
+        sendActionToTab('ATTACH_IMAGE', payload);
+      } else {
+        logMsg(`Image '${currentItem.image_filename}' not found in store.`);
+      }
+    });
+  }
 
-  // Update progress bar
+  // TeePublic Inspector
+  if (tpItemCounter) tpItemCounter.textContent = `${currentIndex + 1} / ${parsedDataset.length}`;
+  if (tpFieldPreview) {
+    const mainTagVal = currentItem.main_tag || (currentItem.supporting_tags ? currentItem.supporting_tags.split(',')[0].trim() : '');
+    tpFieldPreview.innerHTML = `
+      <div class="field-row">
+        <span class="field-key">Image</span>
+        <span class="field-val" title="${currentItem.image_filename}">
+          ${currentItem.image_filename || 'any_image.png'} ✅
+        </span>
+        <button class="btn btn-secondary btn-xs" id="tpApplyImageBtn">Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Title</span>
+        <span class="field-val" title="${currentItem.title}">${currentItem.title || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="tpApplyTitleBtn" ${currentItem.title ? '' : 'disabled'}>Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Main Tag</span>
+        <span class="field-val" title="${mainTagVal}">${mainTagVal || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="tpApplyMainTagBtn" ${mainTagVal ? '' : 'disabled'}>Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Supporting</span>
+        <span class="field-val" title="${currentItem.supporting_tags}">${currentItem.supporting_tags || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="tpApplySupportingBtn" ${currentItem.supporting_tags ? '' : 'disabled'}>Apply</button>
+      </div>
+      <div class="field-row">
+        <span class="field-key">Description</span>
+        <span class="field-val" title="${currentItem.description}">${currentItem.description || '<span style="color:#64748b;font-style:italic;">(empty)</span>'}</span>
+        <button class="btn btn-secondary btn-xs" id="tpApplyDescBtn" ${currentItem.description ? '' : 'disabled'}>Apply</button>
+      </div>
+    `;
+
+    document.getElementById('tpApplyTitleBtn')?.addEventListener('click', () => sendActionToTab('TP_FILL_FORM', { item: { title: currentItem.title } }));
+    document.getElementById('tpApplyMainTagBtn')?.addEventListener('click', () => sendActionToTab('TP_FILL_FORM', { item: { main_tag: mainTagVal } }));
+    document.getElementById('tpApplySupportingBtn')?.addEventListener('click', () => sendActionToTab('TP_AUTO_PASTE_TAGS', { supporting_tags: currentItem.supporting_tags }));
+    document.getElementById('tpApplyDescBtn')?.addEventListener('click', () => sendActionToTab('TP_FILL_FORM', { item: { description: currentItem.description } }));
+
+    document.getElementById('tpApplyImageBtn')?.addEventListener('click', async () => {
+      const payload = await ImageDB.getImagePayload(currentItem.image_filename);
+      if (payload) {
+        sendActionToTab('TP_ATTACH_IMAGE', payload);
+      } else {
+        tpLogMsg(`Image '${currentItem.image_filename}' not found in store.`);
+      }
+    });
+  }
+
+  // Update progress bars
   const progressPct = ((currentIndex + 1) / parsedDataset.length) * 100;
-  progressBarFill.style.width = `${progressPct}%`;
+  if (progressBarFill) progressBarFill.style.width = `${progressPct}%`;
+  if (tpProgressBarFill) tpProgressBarFill.style.width = `${progressPct}%`;
 }
 
 // Send Action to Active Tab Content Script
@@ -465,30 +523,38 @@ function sendActionToTab(action, payload = {}) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (!tabs || tabs.length === 0) {
       logMsg('Error: No active tab found.');
+      if (typeof tpLogMsg === 'function') tpLogMsg('Error: No active tab found.');
       return;
     }
     const tabId = tabs[0].id;
+
+    function logActionStatus(msg) {
+      logMsg(msg);
+      if (typeof tpLogMsg === 'function' && action.startsWith('TP_')) {
+        tpLogMsg(msg);
+      }
+    }
 
     function attemptSend() {
       chrome.tabs.sendMessage(tabId, { action, ...payload }, (res) => {
         if (chrome.runtime.lastError) {
           const errMsg = chrome.runtime.lastError.message || '';
-          logMsg(`Tab Error: ${errMsg}`);
+          logActionStatus(`Tab Error: ${errMsg}`);
 
           if (errMsg.includes('Receiving end does not exist') || errMsg.includes('Could not establish connection')) {
-            logMsg('Injecting content script into target tab...');
+            logActionStatus('Injecting content script into target tab...');
             chrome.scripting.executeScript({
               target: { tabId: tabId },
               files: ['content.js']
             }, () => {
               if (chrome.runtime.lastError) {
-                logMsg(`Injection Error: ${chrome.runtime.lastError.message}`);
+                logActionStatus(`Injection Error: ${chrome.runtime.lastError.message}`);
               } else {
-                logMsg('Script injected. Retrying action...');
+                logActionStatus('Script injected. Retrying action...');
                 setTimeout(() => {
                   chrome.tabs.sendMessage(tabId, { action, ...payload }, (retryRes) => {
                     if (retryRes && retryRes.status) {
-                      logMsg(`Action ${action}: ${retryRes.status}`);
+                      logActionStatus(`Action ${action}: ${retryRes.status}`);
                     }
                   });
                 }, 300);
@@ -496,7 +562,7 @@ function sendActionToTab(action, payload = {}) {
             });
           }
         } else if (res && res.status) {
-          logMsg(`Action ${action}: ${res.status}`);
+          logActionStatus(`Action ${action}: ${res.status}`);
         }
       });
     }
@@ -596,3 +662,184 @@ chrome.runtime.onMessage.addListener((message) => {
     logMsg(`[Batch ${message.index + 1}/${parsedDataset.length}] ${message.status}`);
   }
 });
+
+// Platform Navigation Tab Switching Logic
+const tabRedbubble = document.getElementById('tabRedbubble');
+const tabTeepublic = document.getElementById('tabTeepublic');
+const redbubbleView = document.getElementById('redbubbleView');
+const teepublicView = document.getElementById('teepublicView');
+const headerTitle = document.getElementById('headerTitle');
+
+function switchPlatformTab(platform) {
+  if (platform === 'teepublic') {
+    if (tabTeepublic) tabTeepublic.classList.add('active');
+    if (tabRedbubble) tabRedbubble.classList.remove('active');
+    if (teepublicView) teepublicView.classList.remove('hidden');
+    if (redbubbleView) redbubbleView.classList.add('hidden');
+    if (headerTitle) headerTitle.textContent = 'TeePublic Auto Uploader';
+  } else {
+    if (tabRedbubble) tabRedbubble.classList.add('active');
+    if (tabTeepublic) tabTeepublic.classList.remove('active');
+    if (redbubbleView) redbubbleView.classList.remove('hidden');
+    if (teepublicView) teepublicView.classList.add('hidden');
+    if (headerTitle) headerTitle.textContent = 'Redbubble Auto Uploader';
+  }
+  chrome.storage.local.set({ activePlatform: platform });
+}
+
+if (tabRedbubble && tabTeepublic) {
+  tabRedbubble.addEventListener('click', () => switchPlatformTab('redbubble'));
+  tabTeepublic.addEventListener('click', () => switchPlatformTab('teepublic'));
+
+  chrome.storage.local.get(['activePlatform'], (res) => {
+    if (res.activePlatform === 'teepublic') {
+      switchPlatformTab('teepublic');
+    }
+  });
+}
+
+// TeePublic Logger
+const tpLogBox = document.getElementById('tpLogBox');
+function tpLogMsg(msg) {
+  if (!tpLogBox) return;
+  const time = new Date().toLocaleTimeString();
+  tpLogBox.textContent += `\n[${time}] ${msg}`;
+  tpLogBox.scrollTop = tpLogBox.scrollHeight;
+}
+
+// TeePublic Input Forwarders to Shared Handlers
+const tpFolderFileInput = document.getElementById('tpFolderFileInput');
+const tpJsonFileInput = document.getElementById('tpJsonFileInput');
+const tpPngFilesInput = document.getElementById('tpPngFilesInput');
+
+tpFolderFileInput?.addEventListener('change', (e) => {
+  if (folderFileInput) {
+    folderFileInput.files = e.target.files;
+    folderFileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+});
+
+tpJsonFileInput?.addEventListener('change', (e) => {
+  if (jsonFileInput) {
+    jsonFileInput.files = e.target.files;
+    jsonFileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+});
+
+tpPngFilesInput?.addEventListener('change', (e) => {
+  if (pngFilesInput) {
+    pngFilesInput.files = e.target.files;
+    pngFilesInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+});
+
+// TeePublic Inspector Navigation
+document.getElementById('tpPrevItemBtn')?.addEventListener('click', () => {
+  if (currentIndex > 0) {
+    currentIndex--;
+    chrome.storage.local.set({ batchIndex: currentIndex });
+    updateInspector();
+  }
+});
+
+document.getElementById('tpNextItemBtn')?.addEventListener('click', () => {
+  if (currentIndex < parsedDataset.length - 1) {
+    currentIndex++;
+    chrome.storage.local.set({ batchIndex: currentIndex });
+    updateInspector();
+  }
+});
+
+// TeePublic Quick Action Triggers
+document.getElementById('tpTriggerFillForm')?.addEventListener('click', () => {
+  if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
+  tpLogMsg(`Filling TeePublic form for Item #${currentIndex + 1}...`);
+  sendActionToTab('TP_FILL_FORM', { item: parsedDataset[currentIndex] });
+});
+
+document.getElementById('tpTriggerUploadImage')?.addEventListener('click', async () => {
+  if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
+  const item = parsedDataset[currentIndex];
+  const payload = await ImageDB.getImagePayload(item.image_filename);
+  if (payload) {
+    tpLogMsg(`Attaching image ${item.image_filename} to TeePublic...`);
+    sendActionToTab('TP_ATTACH_IMAGE', payload);
+  } else {
+    tpLogMsg(`Image ${item.image_filename} not found in store.`);
+  }
+});
+
+document.getElementById('tpTriggerEnableProducts')?.addEventListener('click', () => {
+  tpLogMsg('🔘 Enabling all TeePublic product toggles...');
+  sendActionToTab('TP_ENABLE_PRODUCTS');
+});
+
+document.getElementById('tpTriggerMatureNo')?.addEventListener('click', () => {
+  tpLogMsg('🔞 Setting Mature Content to NO...');
+  sendActionToTab('TP_FILL_FORM', { item: {} });
+});
+
+document.getElementById('tpTriggerAutoPasteTags')?.addEventListener('click', () => {
+  if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
+  const item = parsedDataset[currentIndex];
+  tpLogMsg(`🏷️ Auto-pasting supporting tags (75% limit, 1s delay per tag)...`);
+  sendActionToTab('TP_AUTO_PASTE_TAGS', { supporting_tags: item.supporting_tags });
+});
+
+document.getElementById('tpTriggerApplyAll')?.addEventListener('click', async () => {
+  if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
+  const item = parsedDataset[currentIndex];
+  tpLogMsg(`Applying full TeePublic form for Item #${currentIndex + 1}...`);
+  const payload = await ImageDB.getImagePayload(item.image_filename);
+  const tpAutoSave = document.getElementById('tpAutoSaveToggle')?.checked ?? true;
+  sendActionToTab('TP_APPLY_ALL_FORM', { item, autoSave: tpAutoSave, imagePayload: payload });
+});
+
+// TeePublic Automated Batch Controls
+const tpStartBatchBtn = document.getElementById('tpStartBatchBtn');
+if (tpStartBatchBtn) {
+  tpStartBatchBtn.addEventListener('click', () => {
+    if (parsedDataset.length === 0) return tpLogMsg('Cannot start: No dataset loaded.');
+    tpLogMsg('🚀 Starting automated TeePublic batch upload sequence...');
+    const tpAutoSave = document.getElementById('tpAutoSaveToggle')?.checked ?? true;
+    const tpHumanizedDelay = document.getElementById('tpHumanizedDelayToggle')?.checked ?? true;
+    chrome.runtime.sendMessage({
+      action: 'START_BATCH',
+      platform: 'teepublic',
+      items: parsedDataset,
+      startIndex: currentIndex,
+      autoSave: tpAutoSave,
+      humanizedDelay: tpHumanizedDelay
+    });
+  });
+}
+
+document.getElementById('tpPauseBatchBtn')?.addEventListener('click', () => {
+  tpLogMsg('⏸ Pausing TeePublic batch sequence...');
+  chrome.runtime.sendMessage({ action: 'PAUSE_BATCH' });
+});
+
+document.getElementById('tpStopBatchBtn')?.addEventListener('click', () => {
+  tpLogMsg('⏹ Stopping TeePublic batch sequence instantly...');
+  chrome.runtime.sendMessage({ action: 'STOP_BATCH' });
+});
+
+document.getElementById('tpRestartBatchBtn')?.addEventListener('click', () => {
+  if (parsedDataset.length === 0) return tpLogMsg('Cannot restart: No dataset loaded.');
+  tpLogMsg('🔄 Restarting TeePublic batch sequence from item #1...');
+  currentIndex = 0;
+  chrome.storage.local.set({ batchIndex: 0 });
+  updateInspector();
+  const tpAutoSave = document.getElementById('tpAutoSaveToggle')?.checked ?? true;
+  const tpHumanizedDelay = document.getElementById('tpHumanizedDelayToggle')?.checked ?? true;
+  chrome.runtime.sendMessage({
+    action: 'RESTART_BATCH',
+    platform: 'teepublic',
+    items: parsedDataset,
+    startIndex: 0,
+    autoSave: tpAutoSave,
+    humanizedDelay: tpHumanizedDelay
+  });
+});
+
+

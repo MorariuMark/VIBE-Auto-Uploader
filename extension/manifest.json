@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auto Uploader",
-  "version": "1.1.7",
+  "version": "1.2.8",
   "description": "Automated batch asset uploader with IndexedDB on-demand image loading and humanization pauses.",
   "permissions": [
     "activeTab",
@@ -11,11 +11,13 @@
   ],
   "host_permissions": [
     "https://*.redbubble.com/*",
-    "http://*.redbubble.com/*"
+    "http://*.redbubble.com/*",
+    "https://*.teepublic.com/*",
+    "http://*.teepublic.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Auto Uploader v1.1.7"
+    "default_title": "Auto Uploader v1.2.8"
   },
   "background": {
     "service_worker": "background.js"
@@ -24,10 +26,12 @@
     {
       "matches": [
         "https://*.redbubble.com/portfolio/images/new*",
-        "https://*.redbubble.com/portfolio/images/*"
+        "https://*.redbubble.com/portfolio/images/*",
+        "https://*.teepublic.com/*"
       ],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ]
 }
