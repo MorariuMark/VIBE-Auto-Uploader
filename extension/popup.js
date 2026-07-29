@@ -786,6 +786,19 @@ document.getElementById('tpTriggerAutoPasteTags')?.addEventListener('click', () 
   sendActionToTab('TP_AUTO_PASTE_TAGS', { supporting_tags: item.supporting_tags });
 });
 
+document.getElementById('tpApplyCustomTag')?.addEventListener('click', () => {
+  const input = document.getElementById('tpCustomTagInput');
+  const tag = input ? input.value.trim() : '';
+  if (!tag) { tpLogMsg('⚠️ Please enter a tag value.'); return; }
+  tpLogMsg(`📄 Setting supporting tags to "${tag}"...`);
+  sendActionToTab('TP_AUTO_PASTE_TAGS', { supporting_tags: tag });
+});
+
+document.getElementById('tpDebugDumpBtn')?.addEventListener('click', () => {
+  tpLogMsg('🔍 Dumping form elements to console (F12)...');
+  sendActionToTab('TP_DEBUG_DUMP');
+});
+
 document.getElementById('tpTriggerApplyAll')?.addEventListener('click', async () => {
   if (parsedDataset.length === 0) return tpLogMsg('No dataset loaded.');
   const item = parsedDataset[currentIndex];

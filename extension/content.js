@@ -637,56 +637,39 @@ function setTeePublicFields(item) {
       tagsList = tagsList.slice(0, count75);
     }
 
-    const ta = document.querySelector(
-      '#design_secondary_tags, textarea[name="design[secondary_tags]"], #design_tag_list, #design_tags, textarea[name="design[tags]"], textarea[placeholder*="commas" i]'
-    );
-
+    // Use comprehensive element finder instead of limited selectors
+    const ta = findSupportingTagsElement();
     let suppOk = false;
 
     if (ta) {
-      ta.focus();
-      const proto = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-
-      let currentText = '';
-
-      // Sequence: Paste first tag -> type one comma -> repeat until last tag
-      tagsList.forEach((tag, idx) => {
-        // Step A: Paste tag
-        currentText += tag;
-        if (setter) setter.call(ta, currentText); else ta.value = currentText;
+      if (!isWritableInput(ta)) {
+        console.warn("[Auto Uploader] Found element for tags but it is not writable:", ta);
+        results.push("Supporting tags field found but is not writable.");
+      } else if (ta.classList.contains('taggle_input')) {
+        const result = writeTagsToTaggle(tagsList);
+        suppOk = result && (result.startsWith('ok') || result.startsWith('simulated'));
+        if (!suppOk) results.push('Taggle: ' + (result || 'failed'));
+      } else {
+        const formatted = tagsList.join(', ');
+        ta.focus();
+        const proto = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) setter.call(ta, formatted); else ta.value = formatted;
         ta.dispatchEvent(new Event('focus', { bubbles: true }));
-        ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: tag }));
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
         ta.dispatchEvent(new Event('change', { bubbles: true }));
-
-        // Step B: Type one comma ',' (unless last tag)
-        if (idx < tagsList.length - 1) {
-          currentText += ', ';
-          if (setter) setter.call(ta, currentText); else ta.value = currentText;
-          ta.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
-          ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ',' }));
-          ta.dispatchEvent(new KeyboardEvent('keyup', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
-          ta.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-
-      ta.dispatchEvent(new Event('blur', { bubbles: true }));
-      suppOk = true;
-    } else {
-      // Direct fallback using setGenericField
-      const formatted = tagsList.join(', ');
-      suppOk = setGenericField([
-        '#design_secondary_tags',
-        'textarea[name="design[secondary_tags]"]',
-        '#design_tag_list',
-        '#design_tags',
-        'textarea[placeholder*="commas" i]'
-      ], formatted);
+        ta.dispatchEvent(new Event('blur', { bubbles: true }));
+        suppOk = true;
+      }
     }
 
     if (suppOk) {
-      results.push(`Supporting tags set (${tagsList.length} tags / 75%).`);
-    } else {
+      results.push(`Supporting tags set (${tagsList.length} tags).`);
+    } else if (!ta) {
+      console.warn("[Auto Uploader] Supporting tags field not found. Dumping page elements for debug:");
+      document.querySelectorAll('textarea, input, [contenteditable="true"]').forEach(el => {
+        console.warn(`  <${el.tagName.toLowerCase()}${el.id ? ' id="'+el.id+'"' : ''}${el.name ? ' name="'+el.name+'"' : ''}${el.placeholder ? ' placeholder="'+el.placeholder+'"' : ''}${el.getAttribute('aria-label') ? ' aria-label="'+el.getAttribute('aria-label')+'"' : ''}>`);
+      });
       results.push("Supporting tags field not found.");
     }
   }
@@ -838,6 +821,12 @@ async function applyAllTeePublicForm(item, autoSave, imagePayload = null) {
   return { status: results.join(" | ") };
 }
 
+function isWritableInput(el) {
+  if (!el || el.disabled || el.readOnly) return false;
+  const t = (el.type || '').toLowerCase();
+  return t !== 'file' && t !== 'hidden' && t !== 'submit' && t !== 'button' && t !== 'checkbox' && t !== 'radio' && t !== 'image' && t !== 'reset';
+}
+
 function findSupportingTagsElement() {
   const searchDocs = [document];
   const iframes = document.querySelectorAll('iframe');
@@ -847,41 +836,124 @@ function findSupportingTagsElement() {
     } catch(e) {}
   });
 
+  const writableSelector = 'textarea, input:not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="image"]):not([type="reset"]), [contenteditable="true"]';
+
   for (let doc of searchDocs) {
-    const selectors = [
-      '#design_secondary_tags',
-      'textarea[name="design[secondary_tags]"]',
-      '#design_tags',
-      '#design_tag_list',
-      'textarea[name="design[tags]"]',
-      'textarea[name="design[tag_list]"]',
+    // Tier 1: Exact known TeePublic tag field selectors
+    const exactSelectors = [
+      '#design_secondary_tags', 'textarea[name="design[secondary_tags]"]',
+      '#design_tag_list', 'textarea[name="design[tag_list]"]',
+      '#design_tags', 'textarea[name="design[tags]"]',
+      '#tag_list', 'textarea[name="tag_list"]',
+      '#tags_field', 'textarea[name="tags"]',
       'textarea[placeholder*="commas" i]',
       'textarea[placeholder*="tags" i]',
-      'textarea[id*="tag" i]',
-      'textarea[name*="tag" i]'
+      'textarea[placeholder*="keywords" i]',
+      'textarea[aria-label*="tag" i]',
+      'textarea[aria-label*="keyword" i]',
+      'textarea[data-preview*="tag" i]',
+      'input.taggle_input'
     ];
-
-    for (let sel of selectors) {
+    for (let sel of exactSelectors) {
       const elem = doc.querySelector(sel);
-      if (elem) return elem;
+      if (elem && isWritableInput(elem)) {
+        console.log('[Auto Uploader findSupportingTagsElement] TIER 1 match:', sel, elem);
+        return elem;
+      }
     }
 
-    const textareas = doc.querySelectorAll('textarea');
-    for (let ta of textareas) {
+    // Tier 2: Any textarea with tag/keyword in id, name, or class
+    const allTextareas = doc.querySelectorAll('textarea');
+    for (let ta of allTextareas) {
+      if (!isWritableInput(ta)) continue;
       const id = (ta.id || '').toLowerCase();
       const name = (ta.name || '').toLowerCase();
       const ph = (ta.placeholder || '').toLowerCase();
-      if (!id.includes('description') && !name.includes('description') && !ph.includes('describe')) {
+      const cls = (ta.className || '').toLowerCase();
+      if (id.includes('tag') || name.includes('tag') || ph.includes('tag') || cls.includes('tag') ||
+          id.includes('keyword') || name.includes('keyword') || ph.includes('keyword') ||
+          id.includes('secondary') || name.includes('secondary')) {
+        console.log('[Auto Uploader findSupportingTagsElement] TIER 2 match:', ta);
         return ta;
       }
     }
 
-    const inputs = doc.querySelectorAll('input[id*="tag" i], input[name*="tag" i]');
-    for (let inp of inputs) {
+    // Tier 3: Input elements with tag/keyword in attributes (no file inputs)
+    const tagInputs = doc.querySelectorAll('input:not([type="file"])[id*="tag" i], input:not([type="file"])[name*="tag" i], input:not([type="file"])[placeholder*="tag" i], input:not([type="file"])[id*="keyword" i], input:not([type="file"])[name*="keyword" i]');
+    for (let inp of tagInputs) {
+      if (!isWritableInput(inp)) continue;
       const id = (inp.id || '').toLowerCase();
       const name = (inp.name || '').toLowerCase();
+      
       if (!id.includes('primary') && !name.includes('primary') && !id.includes('main') && !name.includes('main')) {
+        console.log('[Auto Uploader findSupportingTagsElement] TIER 3 match (not primary/main):', inp);
         return inp;
+      }
+    }
+
+    // Tier 3b: Elements with tag-related CSS class names (common in React components)
+    
+    const classTagged = doc.querySelectorAll('[class*="tag-input" i], [class*="tags-input" i], [class*="tag-field" i], [class*="tags-field" i], [class*="tag-editor" i], [class*="tokenizer" i], [class*="tag-list" i], [data-testid*="tag" i], [data-field-name*="tag" i]');
+    for (let el of classTagged) {
+      if (isWritableInput(el)) {
+        console.log('[Auto Uploader findSupportingTagsElement] TIER 3b match:', el);
+        return el;
+      }
+    }
+
+    // Tier 3c: TeePublic's React-controlled tag input (type=text, no name attribute, no id)
+    const unnamedInputs = doc.querySelectorAll('input[type="text"]:not([name]):not([id])');
+    for (let inp of unnamedInputs) {
+      if (isWritableInput(inp)) {
+        console.log('[Auto Uploader findSupportingTagsElement] TIER 3c match:', inp, 'placeholder:', inp.placeholder, 'className:', inp.className);
+        return inp;
+      }
+    }
+
+    // Tier 4: Contenteditable divs used as tag editors
+    const editable = doc.querySelectorAll('[contenteditable="true"]');
+    for (let el of editable) {
+      const id = (el.id || '').toLowerCase();
+      const attrs = (el.getAttribute('aria-label') || '').toLowerCase() + (el.getAttribute('data-placeholder') || '').toLowerCase() + (el.getAttribute('placeholder') || '').toLowerCase();
+      const clazz = (el.className || '').toLowerCase();
+      if (id.includes('tag') || attrs.includes('tag') || clazz.includes('tag') ||
+          id.includes('keyword') || attrs.includes('keyword')) {
+        console.log('[Auto Uploader findSupportingTagsElement] TIER 4 match:', el);
+        return el;
+      }
+    }
+
+    // Tier 5: Writable inputs inside a section whose text mentions tags or keywords
+    const tagSections = doc.querySelectorAll('section, fieldset, div, label');
+    for (let section of tagSections) {
+      const sectionText = (section.textContent || '').toLowerCase();
+      if (!sectionText.includes('tag') && !sectionText.includes('keyword')) continue;
+      const inputs = section.querySelectorAll(writableSelector);
+      for (let inp of inputs) {
+        if (isWritableInput(inp)) {
+          console.log('[Auto Uploader findSupportingTagsElement] TIER 5 match:', inp);
+          return inp;
+        }
+      }
+    }
+
+    // Tier 6: Any input linked to a label that says "tags" or "keywords"
+    const labels = doc.querySelectorAll('label');
+    for (let label of labels) {
+      const labelText = (label.textContent || '').toLowerCase();
+      if (!labelText.includes('tag') && !labelText.includes('keyword')) continue;
+      const forId = label.getAttribute('for');
+      if (forId) {
+        const el = doc.getElementById(forId);
+        if (el && isWritableInput(el)) {
+          console.log('[Auto Uploader findSupportingTagsElement] TIER 6 match (for attr):', el);
+          return el;
+        }
+      }
+      const child = label.querySelector(writableSelector);
+      if (child && isWritableInput(child)) {
+        console.log('[Auto Uploader findSupportingTagsElement] TIER 6 match (child):', child);
+        return child;
       }
     }
   }
@@ -889,7 +961,77 @@ function findSupportingTagsElement() {
   return null;
 }
 
-// Dedicated Async Auto-Paste Tags with 1-Second Delay
+// Helper: Write tags to a Taggle input widget using its JS API
+function writeTagsToTaggle(tagsList) {
+  // Approach 1: Try Taggle API via injected script (page context)
+  const apiResult = tryTaggleAPI(tagsList);
+  if (apiResult.startsWith('ok')) return apiResult;
+
+  // Approach 2: Simulate typing each tag + pressing Enter
+  return simulateTaggleInput(tagsList);
+}
+
+function tryTaggleAPI(tagsList) {
+  const bridge = document.createElement('div');
+  bridge.id = '__tp_taggle_bridge';
+  bridge.style.display = 'none';
+  document.body.appendChild(bridge);
+  bridge.textContent = 'pending';
+  const script = document.createElement('script');
+  script.textContent = `
+    (function() {
+      try {
+        var b = document.getElementById('__tp_taggle_bridge');
+        var input = document.querySelector('.taggle_input');
+        if (!input) { b.textContent = 'no_input'; return; }
+        var container = input.closest('.taggle_container') || input.parentElement;
+        var taggle = container.taggle;
+        if (!taggle && window.jQuery) { try { taggle = jQuery(container).data('taggle'); } catch(e) {} }
+        if (!taggle) {
+          for (var k in window) {
+            try {
+              if (window[k] && window[k].container === container && typeof window[k].add === 'function') { taggle = window[k]; break; }
+            } catch(e) {}
+          }
+        }
+        if (!taggle) { b.textContent = 'no_instance'; return; }
+        var tags = ${JSON.stringify(tagsList)};
+        var count = 0;
+        for (var i = 0; i < tags.length; i++) {
+          try { taggle.add(tags[i]); count++; } catch(e) { try { taggle.add(tags[i].trim()); } catch(e2) {} }
+        }
+        b.textContent = 'ok:' + count;
+      } catch(e) {
+        document.getElementById('__tp_taggle_bridge').textContent = 'err:' + e.message;
+      }
+    })();
+  `;
+  document.body.appendChild(script);
+  script.remove();
+  const result = bridge.textContent || 'timeout';
+  bridge.remove();
+  return result;
+}
+
+function simulateTaggleInput(tagsList) {
+  const input = document.querySelector('.taggle_input');
+  if (!input) return 'no_input';
+  input.focus();
+  for (var i = 0; i < tagsList.length; i++) {
+    var tag = String(tagsList[i]).trim();
+    if (!tag) continue;
+    input.value = tag;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: ',', keyCode: 188, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: ',', keyCode: 188, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: ',', keyCode: 188, bubbles: true }));
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  return 'simulated:' + tagsList.length;
+}
+
+// Dedicated Async Auto-Paste Tags
 async function autoPasteTeePublicTags(supporting_tags) {
   if (!supporting_tags) return { status: "No supporting tags provided." };
 
@@ -916,39 +1058,26 @@ async function autoPasteTeePublicTags(supporting_tags) {
   const ta = findSupportingTagsElement();
 
   if (!ta) return { status: "Supporting tags input field not found on page." };
+  if (!isWritableInput(ta)) return { status: `Supporting tags input found but is not writable (tag=${ta.tagName}, type=${ta.type}).` };
 
-  ta.focus();
-  const proto = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-
-  let currentText = '';
-
-  for (let i = 0; i < tagsList.length; i++) {
-    const tag = tagsList[i];
-
-    // 1. Select & Paste Tag
-    currentText += tag;
-    if (setter) setter.call(ta, currentText); else ta.value = currentText;
-    ta.dispatchEvent(new Event('focus', { bubbles: true }));
-    ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: tag }));
-    ta.dispatchEvent(new Event('change', { bubbles: true }));
-
-    // 2. Paste Comma
-    currentText += ', ';
-    if (setter) setter.call(ta, currentText); else ta.value = currentText;
-    ta.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
-    ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ',' }));
-    ta.dispatchEvent(new KeyboardEvent('keyup', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true }));
-    ta.dispatchEvent(new Event('change', { bubbles: true }));
-
-    // 3. Pause 1 second before next tag (unless last tag)
-    if (i < tagsList.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  if (ta.classList.contains('taggle_input')) {
+    const result = writeTagsToTaggle(tagsList);
+    if (!result || (!result.startsWith('ok') && !result.startsWith('simulated'))) {
+      return { status: `Taggle write failed: ${result || 'unknown'}` };
     }
+  } else {
+    const formatted = tagsList.join(', ');
+    ta.focus();
+    const proto = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(ta, formatted); else ta.value = formatted;
+    ta.dispatchEvent(new Event('focus', { bubbles: true }));
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.dispatchEvent(new Event('change', { bubbles: true }));
+    ta.dispatchEvent(new Event('blur', { bubbles: true }));
   }
 
-  ta.dispatchEvent(new Event('blur', { bubbles: true }));
-  return { status: `🏷️ Auto-pasted ${tagsList.length} tags (75%) with 1s delays.` };
+  return { status: `🏷️ Auto-pasted ${tagsList.length} tags.` };
 }
 
 // Message Listener from Popup or Background Service Worker
@@ -993,6 +1122,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       res = publishTeePublicForm(request.autoSave);
     } else if (request.action === 'TP_APPLY_ALL_FORM') {
       res = await applyAllTeePublicForm(request.item || {}, request.autoSave, request.imagePayload);
+    } else if (request.action === 'TP_DEBUG_DUMP') {
+      const els = [];
+      document.querySelectorAll('textarea, input:not([type="hidden"]), [contenteditable="true"]').forEach(el => {
+        els.push({
+          tag: el.tagName.toLowerCase(),
+          id: el.id || '',
+          name: el.name || '',
+          placeholder: el.placeholder || '',
+          type: el.type || '',
+          'aria-label': el.getAttribute('aria-label') || '',
+          className: (el.className || '').substring(0, 60),
+          parentText: (el.closest('label, fieldset, [class*="tag" i], [class*="keyword" i]')?.textContent || '').substring(0, 80)
+        });
+      });
+      console.table(els);
+      res = { status: `🔍 Dumped ${els.length} form elements to console (F12 → Console tab).` };
     }
 
     sendResponse(res);
