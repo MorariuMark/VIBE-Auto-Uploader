@@ -777,7 +777,64 @@ function publishTeePublicForm(autoSave) {
   return { status: "Form filled & ready for publish (Auto-Publish disabled)." };
 }
 
-// 5. Apply ALL TeePublic Form & Options
+// 5. Click TeePublic 'Upload Art' button (after publish, on the design/dashboard page)
+function clickTeePublicUploadArt() {
+  showOnScreenHUD("👉 Looking for 'Upload Art' button...");
+  var candidates = document.querySelectorAll('a, button, span, div');
+  for (var el of candidates) {
+    var txt = (el.textContent || '').trim().toLowerCase();
+    if (txt === 'upload art' || (txt.includes('upload art') && txt.length < 25)) {
+      el.style.outline = "3px solid #22c55e";
+      el.style.borderRadius = "4px";
+      showOnScreenHUD("✅ Clicked 'Upload Art'!");
+      forceClickElement(el);
+      return { status: "Clicked 'Upload Art' button." };
+    }
+  }
+  // Fallback: navigate directly to uploader
+  showOnScreenHUD("➡️ Navigating to TeePublic uploader...");
+  window.location.href = "https://www.teepublic.com/uploader";
+  return { status: "Redirected to TeePublic uploader." };
+}
+
+// 6. Click TeePublic file upload button & attach next image
+async function clickTeePublicUploadFile(imagePayload) {
+  showOnScreenHUD("👉 Looking for TeePublic file upload area...");
+
+  if (!imagePayload || !imagePayload.base64Data) {
+    return { status: "No image payload provided." };
+  }
+
+  var fileInput = document.querySelector('#design_primary_image_file') ||
+                  document.querySelector('input[type="file"][name*="design"]') ||
+                  document.querySelector('input[type="file"]');
+  if (fileInput) {
+    var res = await fetch(imagePayload.base64Data);
+    var blob = await res.blob();
+    var file = new File([blob], imagePayload.filename, { type: imagePayload.mimeType || 'image/png' });
+    var dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+    showOnScreenHUD("✅ Uploaded image '" + imagePayload.filename + "'!");
+    return { status: "Uploaded image '" + imagePayload.filename + "' via file input." };
+  }
+
+  // Fallback: click the upload button to trigger native file picker
+  var uploadBtn = document.querySelector('.upload-button') ||
+                  document.querySelector('[class*="upload"]') ||
+                  document.querySelector('button:has(svg), button:has(.icon)');
+  if (uploadBtn) {
+    forceClickElement(uploadBtn);
+    showOnScreenHUD("✅ Clicked upload button.");
+    return { status: "Clicked upload button (manual file selection needed)." };
+  }
+
+  return { status: "No file input or upload button found." };
+}
+
+// 7. Apply ALL TeePublic Form & Options
 async function applyAllTeePublicForm(item, autoSave, imagePayload = null) {
   const results = [];
 
@@ -794,8 +851,9 @@ async function applyAllTeePublicForm(item, autoSave, imagePayload = null) {
   results.push(productsRes.status);
 
   if (autoSave) {
-    results.push('Waiting 5s before publish...');
-    await new Promise(function(r){ setTimeout(r, 5000); });
+    var delaySec = 3 + Math.floor(Math.random() * 6);
+    results.push('Waiting ' + delaySec + 's before publish...');
+    await new Promise(function(r){ setTimeout(r, delaySec * 1000); });
   }
 
   const publishRes = publishTeePublicForm(autoSave);
@@ -1083,6 +1141,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       res = publishTeePublicForm(request.autoSave);
     } else if (request.action === 'TP_APPLY_ALL_FORM') {
       res = await applyAllTeePublicForm(request.item || {}, request.autoSave, request.imagePayload);
+    } else if (request.action === 'TP_CLICK_UPLOAD_ART') {
+      res = clickTeePublicUploadArt();
+    } else if (request.action === 'TP_CLICK_UPLOAD_FILE') {
+      res = await clickTeePublicUploadFile(request.imagePayload);
     } else if (request.action === 'TP_DEBUG_DUMP') {
       const els = [];
       document.querySelectorAll('textarea, input:not([type="hidden"]), [contenteditable="true"]').forEach(el => {

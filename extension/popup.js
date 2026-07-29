@@ -145,6 +145,9 @@ const triggerMatureNo = document.getElementById('triggerMatureNo');
 const triggerUserAgreement = document.getElementById('triggerUserAgreement');
 const triggerApplyAllForm = document.getElementById('triggerApplyAllForm');
 
+const tpUploadLoopToggle = document.getElementById('tpUploadLoopToggle');
+const tpFilenameAgnosticToggle = document.getElementById('tpFilenameAgnosticToggle');
+
 // Batch controls
 const startBatchBtn = document.getElementById('startBatchBtn');
 const pauseBatchBtn = document.getElementById('pauseBatchBtn');
@@ -159,7 +162,7 @@ function logMsg(msg) {
 
 // Restore saved settings on popup open
 document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.local.get(['autoSaveWork', 'autoStartFolder', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay', 'batchItems', 'batchIndex'], (data) => {
+  chrome.storage.local.get(['autoSaveWork', 'autoStartFolder', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay', 'tpUploadLoop', 'tpFilenameAgnostic', 'batchItems', 'batchIndex'], (data) => {
     if (data.autoSaveWork !== undefined) {
       autoSaveToggle.checked = data.autoSaveWork;
     }
@@ -174,6 +177,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (data.humanizedDelay !== undefined && humanizedDelayToggle) {
       humanizedDelayToggle.checked = data.humanizedDelay;
+    }
+    if (data.tpUploadLoop !== undefined && tpUploadLoopToggle) {
+      tpUploadLoopToggle.checked = data.tpUploadLoop;
+    }
+    if (data.tpFilenameAgnostic !== undefined && tpFilenameAgnosticToggle) {
+      tpFilenameAgnosticToggle.checked = data.tpFilenameAgnostic;
     }
     if (data.batchItems && data.batchItems.length > 0) {
       parsedDataset = data.batchItems;
@@ -208,6 +217,16 @@ uploadLoopToggle?.addEventListener('change', () => {
 humanizedDelayToggle?.addEventListener('change', () => {
   chrome.storage.local.set({ humanizedDelay: humanizedDelayToggle.checked });
   logMsg(`Humanized Pauses set to: ${humanizedDelayToggle.checked}`);
+});
+
+tpUploadLoopToggle?.addEventListener('change', () => {
+  chrome.storage.local.set({ tpUploadLoop: tpUploadLoopToggle.checked });
+  tpLogMsg(`TP Upload loop set to: ${tpUploadLoopToggle.checked}`);
+});
+
+tpFilenameAgnosticToggle?.addEventListener('change', () => {
+  chrome.storage.local.set({ tpFilenameAgnostic: tpFilenameAgnosticToggle.checked });
+  tpLogMsg(`TP Filename Agnostic Mode set to: ${tpFilenameAgnosticToggle.checked}`);
 });
 
 // JSON Parser Helper (Default Data Source)
@@ -795,6 +814,8 @@ if (tpStartBatchBtn) {
     if (parsedDataset.length === 0) return tpLogMsg('Cannot start: No dataset loaded.');
     tpLogMsg('🚀 Starting automated TeePublic batch upload sequence...');
     const tpAutoSave = document.getElementById('tpAutoSaveToggle')?.checked ?? true;
+    const tpUploadLoop = document.getElementById('tpUploadLoopToggle')?.checked ?? true;
+    const tpFilenameAgnostic = document.getElementById('tpFilenameAgnosticToggle')?.checked ?? false;
     const tpHumanizedDelay = document.getElementById('tpHumanizedDelayToggle')?.checked ?? true;
     chrome.runtime.sendMessage({
       action: 'START_BATCH',
@@ -802,6 +823,8 @@ if (tpStartBatchBtn) {
       items: parsedDataset,
       startIndex: currentIndex,
       autoSave: tpAutoSave,
+      uploadLoop: tpUploadLoop,
+      filenameAgnostic: tpFilenameAgnostic,
       humanizedDelay: tpHumanizedDelay
     });
   });
@@ -824,6 +847,8 @@ document.getElementById('tpRestartBatchBtn')?.addEventListener('click', () => {
   chrome.storage.local.set({ batchIndex: 0 });
   updateInspector();
   const tpAutoSave = document.getElementById('tpAutoSaveToggle')?.checked ?? true;
+  const tpUploadLoop = document.getElementById('tpUploadLoopToggle')?.checked ?? true;
+  const tpFilenameAgnostic = document.getElementById('tpFilenameAgnosticToggle')?.checked ?? false;
   const tpHumanizedDelay = document.getElementById('tpHumanizedDelayToggle')?.checked ?? true;
   chrome.runtime.sendMessage({
     action: 'RESTART_BATCH',
@@ -831,6 +856,8 @@ document.getElementById('tpRestartBatchBtn')?.addEventListener('click', () => {
     items: parsedDataset,
     startIndex: 0,
     autoSave: tpAutoSave,
+    uploadLoop: tpUploadLoop,
+    filenameAgnostic: tpFilenameAgnostic,
     humanizedDelay: tpHumanizedDelay
   });
 });

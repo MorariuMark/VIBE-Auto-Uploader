@@ -273,73 +273,126 @@ async function processNextBatchItem() {
             }
 
             if (batchState.uploadLoop) {
-              let countdown = 12; // Wait 12 seconds for Redbubble to publish page
-              
-              while (countdown > 0) {
-                if (!batchState.active || batchState.paused) return;
-                notifyPopupProgress(batchState.currentIndex, `⏳ Waiting ${countdown}s for Redbubble publish banner...`);
-                sendHUDToTab(targetTabId, `⏳ Design published! Waiting ${countdown}s for success banner...`);
-                const ok = await interruptibleSleep(1000);
-                if (!ok || !batchState.active || batchState.paused) return;
-                countdown--;
-              }
-
-              if (!batchState.active || batchState.paused) return;
-
-              // Random delay before clicking 'Add another design'
-              if (batchState.humanizedDelay) {
-                const delayMs = getRandomDelay(1, 6);
-                const delaySec = (delayMs / 1000).toFixed(1);
-                sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Add another design'...`);
-                const ok = await interruptibleSleep(delayMs);
-                if (!ok || !batchState.active || batchState.paused) return;
-              }
-
-              // Step A: Click 'Add another design'
-              sendHUDToTab(targetTabId, "👉 Clicking 'Add another design' link...");
-              chrome.tabs.sendMessage(targetTabId, { action: 'CLICK_ADD_ANOTHER_DESIGN' }, async (addRes) => {
-                notifyPopupProgress(batchState.currentIndex, addRes?.status || "Clicked 'Add another design'");
-
-                // Wait 3 seconds for design choice screen to load
-                const okChoice = await interruptibleSleep(3000);
-                if (!okChoice || !batchState.active || batchState.paused) return;
-
-                // Step B: Fetch CURRENT image payload for NEXT item (#nextIndex)
-                const nextItem = batchState.items[nextIndex];
-                let nextImagePayload = await ImageDB.getImagePayload(nextItem.image_filename);
-                if (!nextImagePayload && batchState.filenameAgnostic) {
-                  nextImagePayload = await ImageDB.getFirstAvailableImagePayload();
+              if (isTeePublic) {
+                // ---- TeePublic Upload Loop ----
+                // Step 1: Wait 10 seconds for publish confirmation page
+                let countdown = 10;
+                while (countdown > 0) {
+                  if (!batchState.active || batchState.paused) return;
+                  notifyPopupProgress(batchState.currentIndex, `⏳ Waiting ${countdown}s for TeePublic publish...`);
+                  sendHUDToTab(targetTabId, `⏳ Design published! Waiting ${countdown}s for next page...`);
+                  const ok = await interruptibleSleep(1000);
+                  if (!ok || !batchState.active || batchState.paused) return;
+                  countdown--;
                 }
 
-                // Random delay before clicking 'Upload new work' card
+                if (!batchState.active || batchState.paused) return;
+
+                // Random delay before clicking 'Upload Art'
                 if (batchState.humanizedDelay) {
                   const delayMs = getRandomDelay(1, 6);
                   const delaySec = (delayMs / 1000).toFixed(1);
-                  sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Upload new work'...`);
+                  sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Upload Art'...`);
                   const ok = await interruptibleSleep(delayMs);
                   if (!ok || !batchState.active || batchState.paused) return;
                 }
 
-                // Click 'Upload new work' card passing CURRENT image payload for NEXT item!
-                sendHUDToTab(targetTabId, `👉 Clicking 'Upload new work' & attaching image for item #${nextIndex + 1}...`);
+                // Step 2: Click 'Upload Art' button
+                sendHUDToTab(targetTabId, "👉 Clicking 'Upload Art' button...");
+                chrome.tabs.sendMessage(targetTabId, { action: 'TP_CLICK_UPLOAD_ART' }, async (artRes) => {
+                  notifyPopupProgress(batchState.currentIndex, artRes?.status || "Clicked 'Upload Art'");
 
-                chrome.tabs.sendMessage(targetTabId, {
-                  action: 'CLICK_UPLOAD_NEW_WORK',
-                  imagePayload: nextImagePayload
-                }, async (uploadRes) => {
-                  notifyPopupProgress(batchState.currentIndex, uploadRes?.status || "Clicked 'Upload new work' & attached next image.");
+                  // Step 3: Wait 5 seconds for upload page to load
+                  const okUploadPage = await interruptibleSleep(5000);
+                  if (!okUploadPage || !batchState.active || batchState.paused) return;
 
-                  // Advance index to next item automatically!
-                  batchState.currentIndex = nextIndex;
-                  chrome.storage.local.set({ batchIndex: batchState.currentIndex });
+                  // Fetch current image payload for NEXT item
+                  const nextItem = batchState.items[nextIndex];
+                  let nextImagePayload = await ImageDB.getImagePayload(nextItem.image_filename);
+                  if (!nextImagePayload && batchState.filenameAgnostic) {
+                    nextImagePayload = await ImageDB.getFirstAvailableImagePayload();
+                  }
 
-                  // Wait 3 seconds then process next item in cycle automatically!
-                  const okNext = await interruptibleSleep(3000);
-                  if (!okNext || !batchState.active || batchState.paused) return;
+                  // Step 4: Click file upload & attach next image
+                  sendHUDToTab(targetTabId, `🖼️ Uploading image for item #${nextIndex + 1}...`);
+                  chrome.tabs.sendMessage(targetTabId, {
+                    action: 'TP_CLICK_UPLOAD_FILE',
+                    imagePayload: nextImagePayload
+                  }, async (fileRes) => {
+                    notifyPopupProgress(batchState.currentIndex, fileRes?.status || "File upload triggered.");
 
-                  processNextBatchItem();
+                    // Advance index to next item
+                    batchState.currentIndex = nextIndex;
+                    chrome.storage.local.set({ batchIndex: batchState.currentIndex });
+
+                    // Wait 3 seconds then process next item
+                    const okNext = await interruptibleSleep(3000);
+                    if (!okNext || !batchState.active || batchState.paused) return;
+
+                    processNextBatchItem();
+                  });
                 });
-              });
+              } else {
+                // ---- Redbubble Upload Loop ----
+                let countdown = 12;
+                while (countdown > 0) {
+                  if (!batchState.active || batchState.paused) return;
+                  notifyPopupProgress(batchState.currentIndex, `⏳ Waiting ${countdown}s for Redbubble publish banner...`);
+                  sendHUDToTab(targetTabId, `⏳ Design published! Waiting ${countdown}s for success banner...`);
+                  const ok = await interruptibleSleep(1000);
+                  if (!ok || !batchState.active || batchState.paused) return;
+                  countdown--;
+                }
+
+                if (!batchState.active || batchState.paused) return;
+
+                if (batchState.humanizedDelay) {
+                  const delayMs = getRandomDelay(1, 6);
+                  const delaySec = (delayMs / 1000).toFixed(1);
+                  sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Add another design'...`);
+                  const ok = await interruptibleSleep(delayMs);
+                  if (!ok || !batchState.active || batchState.paused) return;
+                }
+
+                sendHUDToTab(targetTabId, "👉 Clicking 'Add another design' link...");
+                chrome.tabs.sendMessage(targetTabId, { action: 'CLICK_ADD_ANOTHER_DESIGN' }, async (addRes) => {
+                  notifyPopupProgress(batchState.currentIndex, addRes?.status || "Clicked 'Add another design'");
+
+                  const okChoice = await interruptibleSleep(3000);
+                  if (!okChoice || !batchState.active || batchState.paused) return;
+
+                  const nextItem = batchState.items[nextIndex];
+                  let nextImagePayload = await ImageDB.getImagePayload(nextItem.image_filename);
+                  if (!nextImagePayload && batchState.filenameAgnostic) {
+                    nextImagePayload = await ImageDB.getFirstAvailableImagePayload();
+                  }
+
+                  if (batchState.humanizedDelay) {
+                    const delayMs = getRandomDelay(1, 6);
+                    const delaySec = (delayMs / 1000).toFixed(1);
+                    sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Upload new work'...`);
+                    const ok = await interruptibleSleep(delayMs);
+                    if (!ok || !batchState.active || batchState.paused) return;
+                  }
+
+                  sendHUDToTab(targetTabId, `👉 Clicking 'Upload new work' & attaching image for item #${nextIndex + 1}...`);
+
+                  chrome.tabs.sendMessage(targetTabId, {
+                    action: 'CLICK_UPLOAD_NEW_WORK',
+                    imagePayload: nextImagePayload
+                  }, async (uploadRes) => {
+                    notifyPopupProgress(batchState.currentIndex, uploadRes?.status || "Clicked 'Upload new work' & attached next image.");
+
+                    batchState.currentIndex = nextIndex;
+                    chrome.storage.local.set({ batchIndex: batchState.currentIndex });
+
+                    const okNext = await interruptibleSleep(3000);
+                    if (!okNext || !batchState.active || batchState.paused) return;
+
+                    processNextBatchItem();
+                  });
+                });
+              }
             } else {
               // Direct URL refresh fallback
               setTimeout(() => {
