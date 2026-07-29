@@ -57,10 +57,8 @@
       });
     }
 
-    console.log('[TP Enable] Done: toggles=' + toggleCount + ' defaultColors=' + defaultColorCount + ' bg=' + bgCount);
     document.body.dataset.tpProductResult = 'bg:' + bgCount + ' defaultColors:' + defaultColorCount + ' toggles:' + toggleCount;
   } catch(e) {
-    console.error('[TP Enable] Error:', e);
     document.body.dataset.tpProductResult = 'err:' + e.message;
   }
 })();

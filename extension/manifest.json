@@ -24,7 +24,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["tp_enable_products.js"],
+      "resources": ["tp_enable_products.js", "tp_taggle_api.js"],
       "matches": ["https://*.teepublic.com/*"]
     }
   ],

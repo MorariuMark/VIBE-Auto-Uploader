@@ -582,7 +582,7 @@ async function attachTeePublicImage(filename, mimeType, base64Data) {
 }
 
 // 2. Set TeePublic Fields (Title, Main Tag, Supporting Tags, Description, Mature Content NO, Terms)
-function setTeePublicFields(item) {
+async function setTeePublicFields(item) {
   const results = [];
 
   // 1. Title
@@ -646,7 +646,7 @@ function setTeePublicFields(item) {
         console.warn("[Auto Uploader] Found element for tags but it is not writable:", ta);
         results.push("Supporting tags field found but is not writable.");
       } else if (ta.classList.contains('taggle_input')) {
-        const result = writeTagsToTaggle(tagsList);
+        const result = await writeTagsToTaggle(tagsList);
         suppOk = result && (result.startsWith('ok') || result.startsWith('simulated'));
         if (!suppOk) results.push('Taggle: ' + (result || 'failed'));
       } else {
@@ -763,7 +763,8 @@ function publishTeePublicForm(autoSave) {
   }
 
   if (autoSave) {
-    const publishBtn = document.querySelector('#publish') ||
+    const publishBtn = document.querySelector('button.publish-and-promote-button') ||
+                       document.querySelector('#publish') ||
                        document.querySelector('button[type="submit"]') ||
                        document.querySelector('input[type="submit"][value*="Publish" i]') ||
                        document.querySelector('button[class*="publish" i]');
@@ -786,11 +787,16 @@ async function applyAllTeePublicForm(item, autoSave, imagePayload = null) {
     await sleep(500);
   }
 
-  const fieldsRes = setTeePublicFields(item);
+  const fieldsRes = await setTeePublicFields(item);
   results.push(fieldsRes.status);
 
   const productsRes = await enableTeePublicProducts();
   results.push(productsRes.status);
+
+  if (autoSave) {
+    results.push('Waiting 5s before publish...');
+    await new Promise(function(r){ setTimeout(r, 5000); });
+  }
 
   const publishRes = publishTeePublicForm(autoSave);
   results.push(publishRes.status);
@@ -939,52 +945,30 @@ function findSupportingTagsElement() {
 }
 
 // Helper: Write tags to a Taggle input widget using its JS API
-function writeTagsToTaggle(tagsList) {
-  // Approach 1: Try Taggle API via injected script (page context)
-  const apiResult = tryTaggleAPI(tagsList);
+async function writeTagsToTaggle(tagsList) {
+  // Approach 1: Try Taggle API via page-context script
+  const apiResult = await tryTaggleAPI(tagsList);
   if (apiResult.startsWith('ok')) return apiResult;
 
   // Approach 2: Simulate typing each tag + pressing Enter
   return simulateTaggleInput(tagsList);
 }
 
-function tryTaggleAPI(tagsList) {
+async function tryTaggleAPI(tagsList) {
   const bridge = document.createElement('div');
   bridge.id = '__tp_taggle_bridge';
+  bridge.setAttribute('data-tags', JSON.stringify(tagsList));
   bridge.style.display = 'none';
-  document.body.appendChild(bridge);
   bridge.textContent = 'pending';
+  document.body.appendChild(bridge);
   const script = document.createElement('script');
-  script.textContent = `
-    (function() {
-      try {
-        var b = document.getElementById('__tp_taggle_bridge');
-        var input = document.querySelector('.taggle_input');
-        if (!input) { b.textContent = 'no_input'; return; }
-        var container = input.closest('.taggle_container') || input.parentElement;
-        var taggle = container.taggle;
-        if (!taggle && window.jQuery) { try { taggle = jQuery(container).data('taggle'); } catch(e) {} }
-        if (!taggle) {
-          for (var k in window) {
-            try {
-              if (window[k] && window[k].container === container && typeof window[k].add === 'function') { taggle = window[k]; break; }
-            } catch(e) {}
-          }
-        }
-        if (!taggle) { b.textContent = 'no_instance'; return; }
-        var tags = ${JSON.stringify(tagsList)};
-        var count = 0;
-        for (var i = 0; i < tags.length; i++) {
-          try { taggle.add(tags[i]); count++; } catch(e) { try { taggle.add(tags[i].trim()); } catch(e2) {} }
-        }
-        b.textContent = 'ok:' + count;
-      } catch(e) {
-        document.getElementById('__tp_taggle_bridge').textContent = 'err:' + e.message;
-      }
-    })();
-  `;
-  document.body.appendChild(script);
-  script.remove();
+  script.src = chrome.runtime.getURL('tp_taggle_api.js');
+  await new Promise(function(resolve) {
+    script.onload = function() { script.remove(); resolve(); };
+    script.onerror = function() { script.remove(); bridge.textContent = 'load-error'; resolve(); };
+    document.body.appendChild(script);
+  });
+  await new Promise(function(resolve){ setTimeout(resolve, 200); });
   const result = bridge.textContent || 'timeout';
   bridge.remove();
   return result;
@@ -1038,7 +1022,7 @@ async function autoPasteTeePublicTags(supporting_tags) {
   if (!isWritableInput(ta)) return { status: `Supporting tags input found but is not writable (tag=${ta.tagName}, type=${ta.type}).` };
 
   if (ta.classList.contains('taggle_input')) {
-    const result = writeTagsToTaggle(tagsList);
+    const result = await writeTagsToTaggle(tagsList);
     if (!result || (!result.startsWith('ok') && !result.startsWith('simulated'))) {
       return { status: `Taggle write failed: ${result || 'unknown'}` };
     }
@@ -1090,7 +1074,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.action === 'TP_ATTACH_IMAGE') {
       res = await attachTeePublicImage(request.filename, request.mimeType, request.base64Data);
     } else if (request.action === 'TP_FILL_FORM') {
-      res = setTeePublicFields(request.item || {});
+      res = await setTeePublicFields(request.item || {});
     } else if (request.action === 'TP_AUTO_PASTE_TAGS') {
       res = await autoPasteTeePublicTags(request.supporting_tags || (request.item ? request.item.supporting_tags : ''));
     } else if (request.action === 'TP_ENABLE_PRODUCTS') {
