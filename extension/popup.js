@@ -1,4 +1,4 @@
-// Auto Uploader v1.5.0 - popup.js (Stealth Edition)
+// Auto Uploader v1.5.1 - popup.js (Stealth Edition)
 
 // IndexedDB image store for handling hundreds of image files on-demand without memory limits
 const ImageDB = {
@@ -631,14 +631,17 @@ startBatchBtn.addEventListener('click', () => {
     return;
   }
   logMsg('🚀 Starting automated batch upload sequence...');
+  const rbMaxBatchLimit = Number(document.getElementById('rbMaxBatchLimit')?.value ?? 3);
   chrome.runtime.sendMessage({
     action: 'START_BATCH',
+    platform: 'redbubble',
     items: parsedDataset,
     startIndex: currentIndex,
     autoSave: autoSaveToggle.checked,
     filenameAgnostic: filenameAgnosticToggle.checked,
     uploadLoop: uploadLoopToggle ? uploadLoopToggle.checked : true,
-    humanizedDelay: humanizedDelayToggle ? humanizedDelayToggle.checked : true
+    humanizedDelay: humanizedDelayToggle ? humanizedDelayToggle.checked : true,
+    maxBatchLimit: rbMaxBatchLimit
   });
 });
 

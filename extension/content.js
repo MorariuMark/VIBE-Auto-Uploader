@@ -1,6 +1,6 @@
-// Auto Uploader v1.5.0 - content.js (Stealth Edition)
+// Auto Uploader v1.5.1 - content.js (Stealth Edition)
 
-console.log("%c[Auto Uploader v1.5.0] Content script loaded with telemetry protection & stealth mouse simulation.", "color: #ec4899; font-weight: bold;");
+console.log("%c[Auto Uploader v1.5.1] Content script loaded with telemetry protection & stealth mouse simulation.", "color: #ec4899; font-weight: bold;");
 
 // Utility: Sleep helper with random jitter
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

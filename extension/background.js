@@ -347,13 +347,15 @@ async function processNextBatchItem() {
                     processNextBatchItem();
                   });
                 });
-              } else {
-                // ---- Redbubble Upload Loop ----
-                let countdown = 12;
+               } else {
+                // ---- Redbubble Stealth Upload Loop ----
+                // Step 1: Random 45 to 90 second post-publish delay (stealth requirement)
+                const postPublishSec = Math.floor(Math.random() * (90 - 45 + 1)) + 45;
+                let countdown = postPublishSec;
                 while (countdown > 0) {
                   if (!batchState.active || batchState.paused) return;
-                  notifyPopupProgress(batchState.currentIndex, `⏳ Waiting ${countdown}s for Redbubble publish banner...`);
-                  sendHUDToTab(targetTabId, `⏳ Design published! Waiting ${countdown}s for success banner...`);
+                  notifyPopupProgress(batchState.currentIndex, `⏳ Redbubble stealth pause: ${countdown}s remaining post-publish...`);
+                  sendHUDToTab(targetTabId, `⏳ Design published! Stealth cooldown: ${countdown}s remaining...`);
                   const ok = await interruptibleSleep(1000);
                   if (!ok || !batchState.active || batchState.paused) return;
                   countdown--;
@@ -362,9 +364,9 @@ async function processNextBatchItem() {
                 if (!batchState.active || batchState.paused) return;
 
                 if (batchState.humanizedDelay) {
-                  const delayMs = getRandomDelay(1, 6);
+                  const delayMs = getRandomDelay(2, 7);
                   const delaySec = (delayMs / 1000).toFixed(1);
-                  sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Add another design'...`);
+                  sendHUDToTab(targetTabId, `⏳ Humanizing pause: waiting ${delaySec}s before 'Add another design'...`);
                   const ok = await interruptibleSleep(delayMs);
                   if (!ok || !batchState.active || batchState.paused) return;
                 }
@@ -373,7 +375,7 @@ async function processNextBatchItem() {
                 chrome.tabs.sendMessage(targetTabId, { action: 'CLICK_ADD_ANOTHER_DESIGN' }, async (addRes) => {
                   notifyPopupProgress(batchState.currentIndex, addRes?.status || "Clicked 'Add another design'");
 
-                  const okChoice = await interruptibleSleep(3000);
+                  const okChoice = await interruptibleSleep(getRandomDelay(4, 8));
                   if (!okChoice || !batchState.active || batchState.paused) return;
 
                   const nextItem = batchState.items[nextIndex];
@@ -383,9 +385,9 @@ async function processNextBatchItem() {
                   }
 
                   if (batchState.humanizedDelay) {
-                    const delayMs = getRandomDelay(1, 6);
+                    const delayMs = getRandomDelay(2, 6);
                     const delaySec = (delayMs / 1000).toFixed(1);
-                    sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Upload new work'...`);
+                    sendHUDToTab(targetTabId, `⏳ Humanizing pause: waiting ${delaySec}s before 'Upload new work'...`);
                     const ok = await interruptibleSleep(delayMs);
                     if (!ok || !batchState.active || batchState.paused) return;
                   }
@@ -398,10 +400,13 @@ async function processNextBatchItem() {
                   }, async (uploadRes) => {
                     notifyPopupProgress(batchState.currentIndex, uploadRes?.status || "Clicked 'Upload new work' & attached next image.");
 
+                    // Advance index to next item
                     batchState.currentIndex = nextIndex;
                     chrome.storage.local.set({ batchIndex: batchState.currentIndex });
 
-                    const okNext = await interruptibleSleep(3000);
+                    // Stealth pause (4-8s) before starting next form fill
+                    const nextStepDelay = getRandomDelay(4, 8);
+                    const okNext = await interruptibleSleep(nextStepDelay);
                     if (!okNext || !batchState.active || batchState.paused) return;
 
                     processNextBatchItem();

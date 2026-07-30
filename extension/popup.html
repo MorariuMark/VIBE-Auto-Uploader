@@ -388,7 +388,7 @@
       <div class="logo-badge">AUTO UPLOADER</div>
       <div class="title-group">
         <h1 id="headerTitle">Auto Uploader Platform</h1>
-        <span class="version-tag">Manifest V3 - v1.5.0 (Stealth Edition)</span>
+        <span class="version-tag">Manifest V3 - v1.5.1 (Stealth Edition)</span>
       </div>
     </div>
   </div>
@@ -474,6 +474,14 @@
     <button class="btn btn-gradient" style="width: 100%; margin-top: 4px;" id="triggerApplyAllForm">⚡ Apply ALL Form & Product Options Now</button>
   </div>
 
+  <!-- Account Safety & Warmup Advisory Banner -->
+  <div style="background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 11px; color: #fef08a;">
+    <strong>🛡️ Anti-Ban Account Warmup Advisory:</strong>
+    <div style="margin-top: 4px; color: #cbd5e1; line-height: 1.35;">
+      Redbubble anti-bot systems monitor upload velocity. We recommend capping initial batches to <strong>3–5 items per day</strong> until your artist account is established.
+    </div>
+  </div>
+
   <!-- Automated Batch Sequence Control -->
   <div class="card">
     <div class="card-title">🚀 Automated Batch Sequence</div>
@@ -503,7 +511,7 @@
     </div>
 
     <div class="toggle-wrapper" style="margin-top: 6px;">
-      <span style="font-weight:600; font-size:11px;" title="Wait 15s for published page, click 'Add another design', click 'Upload new work', and auto-attach last uploaded image">Upload loop (Post-Publish Navigation):</span>
+      <span style="font-weight:600; font-size:11px;" title="Wait after publish, click 'Add another design', click 'Upload new work', and auto-attach last uploaded image">Upload loop (Post-Publish Navigation):</span>
       <label class="switch">
         <input type="checkbox" id="uploadLoopToggle" checked>
         <span class="slider"></span>
@@ -511,11 +519,21 @@
     </div>
 
     <div class="toggle-wrapper" style="margin-top: 6px;">
-      <span style="font-weight:600; font-size:11px;" title="Random 1-8s delays between actions to prevent anti-bot detection">Humanized Pauses (Random 1-8s Delays):</span>
+      <span style="font-weight:600; font-size:11px;" title="Random delays and mouse telemetry to prevent anti-bot detection">Humanized Delays & Mouse Telemetry:</span>
       <label class="switch">
         <input type="checkbox" id="humanizedDelayToggle" checked>
         <span class="slider"></span>
       </label>
+    </div>
+
+    <div class="toggle-wrapper" style="margin-top: 6px; justify-content: space-between; display: flex; align-items: center;">
+      <span style="font-weight:600; font-size:11px;" title="Automatically stop batch after uploading N items for account safety">Batch Safety Cap (Max Items per Run):</span>
+      <select id="rbMaxBatchLimit" style="background: #0f172a; color: #f8fafc; border: 1px solid var(--card-border); border-radius: 4px; padding: 2px 6px; font-size: 11px;">
+        <option value="3" selected>3 Items (Safe Warmup)</option>
+        <option value="5">5 Items (Moderate)</option>
+        <option value="10">10 Items</option>
+        <option value="0">Unlimited</option>
+      </select>
     </div>
 
     <div class="grid-2" style="margin-top: 8px; margin-bottom: 6px;">
