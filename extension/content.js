@@ -1,6 +1,6 @@
-// Auto Uploader v1.4.0 - content.js (Stealth Edition)
+// Auto Uploader v1.4.1 - content.js (Stealth Edition)
 
-console.log("%c[Auto Uploader v1.4.0] Content script loaded with stealth humanization.", "color: #ec4899; font-weight: bold;");
+console.log("%c[Auto Uploader v1.4.1] Content script loaded with stealth humanization.", "color: #ec4899; font-weight: bold;");
 
 // Utility: Sleep helper with random jitter
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -13,7 +13,7 @@ async function humanScrollTo(elem) {
     const rect = elem.getBoundingClientRect();
     const targetY = window.scrollY + rect.top - (window.innerHeight / 3);
     window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-    await sleep(randomJitter(200, 450));
+    await sleep(randomJitter(150, 300));
   } catch (e) {}
 }
 
@@ -22,7 +22,7 @@ async function humanTypeIntoField(elem, text) {
   if (!elem || !text) return;
   await humanScrollTo(elem);
   elem.focus();
-  await sleep(randomJitter(100, 250));
+  await sleep(randomJitter(80, 180));
 
   const isTextArea = elem.tagName === 'TEXTAREA';
   const isInput = elem.tagName === 'INPUT';
@@ -46,17 +46,17 @@ async function humanTypeIntoField(elem, text) {
     elem.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: char }));
     elem.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
 
-    // Character typing speed: 30ms to 90ms with micro-pauses after spaces or commas
-    let delay = randomJitter(35, 85);
+    // Slightly faster typing speed: 15ms to 40ms with short pauses after spaces or commas
+    let delay = randomJitter(15, 40);
     if (char === ' ' || char === ',' || char === '.') {
-      delay += randomJitter(80, 200);
+      delay += randomJitter(40, 100);
     }
     await sleep(delay);
   }
 
   elem.dispatchEvent(new Event('change', { bubbles: true }));
   elem.dispatchEvent(new Event('blur', { bubbles: true }));
-  await sleep(randomJitter(150, 300));
+  await sleep(randomJitter(100, 200));
 }
 
 // Native React Value Setters
@@ -732,7 +732,16 @@ async function setTeePublicFields(item) {
         suppOk = result && (result.startsWith('ok') || result.startsWith('simulated'));
         if (!suppOk) results.push('Taggle: ' + (result || 'failed'));
       } else {
-        await humanTypeIntoField(ta, tagsList.join(', '));
+        await humanScrollTo(ta);
+        ta.focus();
+        await sleep(randomJitter(100, 200));
+
+        for (let i = 0; i < tagsList.length; i++) {
+          const tag = tagsList[i];
+          const textToType = (i > 0 ? ', ' : '') + tag;
+          await humanTypeIntoField(ta, textToType);
+          await sleep(randomJitter(200, 450)); // Small human delay between each supporting tag
+        }
         suppOk = true;
       }
     }
@@ -806,12 +815,12 @@ async function setTeePublicFields(item) {
   return { status: results.join(" | ") };
 }
 
-// 3. Enable All TeePublic Product Categories & Swatches (Clean content-script execution, zero script injections)
+// 3. Enable All TeePublic Product Categories & Swatches (Clean content-script execution, humanized timing)
 async function enableTeePublicProducts() {
   let toggleCount = 0, defaultColorCount = 0, bgCount = 0;
 
   try {
-    // 1. Enable all product toggles that are OFF
+    // 1. Enable all product toggles that are OFF (one by one with realistic human delays)
     const allToggles = document.querySelectorAll('.canvas-selection div.on-off.canvas-enable');
     for (let toggle of allToggles) {
       const hidden = toggle.querySelector('input[type="hidden"]');
@@ -822,21 +831,23 @@ async function enableTeePublicProducts() {
       }
       if (isOff) {
         const clickable = toggle.querySelector('span.enabled, a, button') || toggle;
+        await humanScrollTo(clickable);
         forceClickElement(clickable);
         toggleCount++;
-        await sleep(randomJitter(60, 150));
+        await sleep(randomJitter(200, 450)); // Humanized pause between product toggles
       }
     }
 
-    // 2. Set default color dropdowns if unselected
+    // 2. Set default color dropdowns if unselected (one by one)
     const allDDs = document.querySelectorAll('.canvas-selection .dd-container');
     for (let dd of allDDs) {
       const selText = dd.querySelector('.dd-selected-text');
       const currentVal = selText ? (selText.textContent || '').trim() : '';
       if (currentVal.toLowerCase() === 'select default color' || currentVal.toLowerCase() === 'select default colour') {
+        await humanScrollTo(dd);
         const ddSelect = dd.querySelector('.dd-select');
         if (ddSelect) forceClickElement(ddSelect);
-        await sleep(randomJitter(100, 200));
+        await sleep(randomJitter(200, 400));
 
         const opts = dd.querySelectorAll('.dd-option');
         for (let i = 0; i < opts.length; i++) {
@@ -845,7 +856,7 @@ async function enableTeePublicProducts() {
           if (optText && optText.toLowerCase() !== 'select default color' && optText.toLowerCase() !== 'select default colour') {
             forceClickElement(opts[i]);
             defaultColorCount++;
-            await sleep(randomJitter(80, 150));
+            await sleep(randomJitter(250, 450)); // Humanized pause after selecting color
             break;
           }
         }
