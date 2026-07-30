@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Auto Uploader",
-  "version": "1.3.0",
-  "description": "Automated batch asset uploader with IndexedDB on-demand image loading and humanization pauses.",
+  "version": "1.4.0",
+  "description": "Automated batch asset uploader with stealth humanization, anti-bot event simulation, and customizable delays.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -17,17 +17,11 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Auto Uploader v1.3.0"
+    "default_title": "Auto Uploader v1.4.0"
   },
   "background": {
     "service_worker": "background.js"
   },
-  "web_accessible_resources": [
-    {
-      "resources": ["tp_enable_products.js", "tp_taggle_api.js"],
-      "matches": ["https://*.teepublic.com/*"]
-    }
-  ],
   "content_scripts": [
     {
       "matches": [

@@ -1,4 +1,4 @@
-// Auto Uploader v1.3.0 - popup.js
+// Auto Uploader v1.4.0 - popup.js (Stealth Edition)
 
 // IndexedDB image store for handling hundreds of image files on-demand without memory limits
 const ImageDB = {

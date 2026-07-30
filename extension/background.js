@@ -274,13 +274,14 @@ async function processNextBatchItem() {
 
             if (batchState.uploadLoop) {
               if (isTeePublic) {
-                // ---- TeePublic Upload Loop ----
-                // Step 1: Wait 10 seconds for publish confirmation page
-                let countdown = 10;
+                // ---- TeePublic Stealth Upload Loop ----
+                // Step 1: Random 30 to 60 second post-publish delay (stealth requirement)
+                const postPublishSec = Math.floor(Math.random() * (60 - 30 + 1)) + 30;
+                let countdown = postPublishSec;
                 while (countdown > 0) {
                   if (!batchState.active || batchState.paused) return;
-                  notifyPopupProgress(batchState.currentIndex, `⏳ Waiting ${countdown}s for TeePublic publish...`);
-                  sendHUDToTab(targetTabId, `⏳ Design published! Waiting ${countdown}s for next page...`);
+                  notifyPopupProgress(batchState.currentIndex, `⏳ Stealth pause: ${countdown}s remaining post-publish...`);
+                  sendHUDToTab(targetTabId, `⏳ Design published! Stealth cooldown: ${countdown}s remaining...`);
                   const ok = await interruptibleSleep(1000);
                   if (!ok || !batchState.active || batchState.paused) return;
                   countdown--;
@@ -288,11 +289,11 @@ async function processNextBatchItem() {
 
                 if (!batchState.active || batchState.paused) return;
 
-                // Random delay before clicking 'Upload Art'
+                // Micro-pause before clicking 'Upload Art'
                 if (batchState.humanizedDelay) {
-                  const delayMs = getRandomDelay(1, 6);
+                  const delayMs = getRandomDelay(2, 6);
                   const delaySec = (delayMs / 1000).toFixed(1);
-                  sendHUDToTab(targetTabId, `⏳ Anti-bot pause: waiting ${delaySec}s before 'Upload Art'...`);
+                  sendHUDToTab(targetTabId, `⏳ Humanizing pause: waiting ${delaySec}s before clicking 'Upload Art'...`);
                   const ok = await interruptibleSleep(delayMs);
                   if (!ok || !batchState.active || batchState.paused) return;
                 }
@@ -302,8 +303,9 @@ async function processNextBatchItem() {
                 chrome.tabs.sendMessage(targetTabId, { action: 'TP_CLICK_UPLOAD_ART' }, async (artRes) => {
                   notifyPopupProgress(batchState.currentIndex, artRes?.status || "Clicked 'Upload Art'");
 
-                  // Step 3: Wait 5 seconds for upload page to load
-                  const okUploadPage = await interruptibleSleep(5000);
+                  // Step 3: Wait 5-9 seconds for upload page to load
+                  const uploadPageDelay = getRandomDelay(5, 9);
+                  const okUploadPage = await interruptibleSleep(uploadPageDelay);
                   if (!okUploadPage || !batchState.active || batchState.paused) return;
 
                   // Fetch current image payload for NEXT item
@@ -325,8 +327,9 @@ async function processNextBatchItem() {
                     batchState.currentIndex = nextIndex;
                     chrome.storage.local.set({ batchIndex: batchState.currentIndex });
 
-                    // Wait 3 seconds then process next item
-                    const okNext = await interruptibleSleep(3000);
+                    // Stealth pause (4-8s) before starting next form fill
+                    const nextStepDelay = getRandomDelay(4, 8);
+                    const okNext = await interruptibleSleep(nextStepDelay);
                     if (!okNext || !batchState.active || batchState.paused) return;
 
                     processNextBatchItem();
