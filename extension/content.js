@@ -116,8 +116,8 @@ async function attachImageFile(filename, mimeType, base64Data) {
   }
 }
 
-// Native input & contenteditable setter helper
-function setGenericField(selectors, value) {
+// Native input & contenteditable setter helper with human typing simulation
+async function setGenericField(selectors, value, useStealthTyping = true) {
   if (value === undefined || value === null || value === '') return false;
 
   for (let sel of selectors) {
@@ -126,8 +126,14 @@ function setGenericField(selectors, value) {
       for (let elem of elems) {
         if (!elem) continue;
 
+        if (useStealthTyping) {
+          await humanTypeIntoField(elem, String(value));
+          return true;
+        }
+
         // Handle contenteditable / textbox role (e.g. #main-tag-en, #supporting-tags-en)
         if (elem.isContentEditable || elem.getAttribute('contenteditable') === 'true' || elem.getAttribute('role') === 'textbox') {
+          await humanScrollTo(elem);
           elem.focus();
           elem.innerText = value;
           elem.textContent = value;
@@ -140,6 +146,7 @@ function setGenericField(selectors, value) {
 
         // Handle standard <input> or <textarea>
         if (elem.tagName === 'INPUT' || elem.tagName === 'TEXTAREA') {
+          await humanScrollTo(elem);
           const proto = elem.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
           const valueSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
           if (valueSetter) {
@@ -162,7 +169,7 @@ function setGenericField(selectors, value) {
 }
 
 // 2. Set Field Logic (Title, Main Tag, Supporting Tags, Description, HEX Color)
-function setFieldValue(field, value) {
+async function setFieldValue(field, value) {
   if (!value) return { status: `Skipped ${field}: Value is empty.` };
 
   if (field === 'title') {
@@ -175,7 +182,7 @@ function setFieldValue(field, value) {
       'input[placeholder*="Title" i]',
       'input[placeholder*="Great Wave" i]'
     ];
-    if (setGenericField(titleSelectors, value)) {
+    if (await setGenericField(titleSelectors, value)) {
       return { status: `Title set to "${value}"` };
     }
     return { status: "Title input field not found." };
@@ -194,8 +201,8 @@ function setFieldValue(field, value) {
       'input[name="work[tag]"]',
       'input[placeholder*="Main tag" i]'
     ];
-    if (setGenericField(mainTagSelectors, value)) {
-      setGenericField(['#work_tag_editor_en', 'input[name="work[tag_field_en]"]'], value);
+    if (await setGenericField(mainTagSelectors, value)) {
+      await setGenericField(['#work_tag_editor_en', 'input[name="work[tag_field_en]"]'], value, false);
       return { status: `Main tag set to "${value}"` };
     }
     return { status: "Main tag input field not found." };
@@ -212,7 +219,7 @@ function setFieldValue(field, value) {
       'textarea[id*="supporting"]',
       'textarea[placeholder*="camping" i]'
     ];
-    if (setGenericField(supportingSelectors, value)) {
+    if (await setGenericField(supportingSelectors, value)) {
       return { status: "Supporting tags set." };
     }
     return { status: "Supporting tags input field not found." };
@@ -228,7 +235,7 @@ function setFieldValue(field, value) {
       'textarea[placeholder*="camping" i]',
       'textarea[placeholder*="description" i]'
     ];
-    if (setGenericField(descSelectors, value)) {
+    if (await setGenericField(descSelectors, value)) {
       return { status: "Description set." };
     }
     return { status: "Description textarea not found." };
@@ -244,7 +251,7 @@ function setFieldValue(field, value) {
       '.background-color-global',
       'input[placeholder*="#" i]'
     ];
-    if (setGenericField(colorSelectors, hex)) {
+    if (await setGenericField(colorSelectors, hex, false)) {
       return { status: `Background HEX set to ${hex}` };
     }
     return { status: "Background color picker not found." };
@@ -450,11 +457,31 @@ async function applyAllFormAndOptions(item, autoSave, imagePayload = null) {
     await sleep(500);
   }
 
-  if (item.title) results.push(setFieldValue('title', item.title).status);
-  if (item.main_tag) results.push(setFieldValue('main_tag', item.main_tag).status);
-  if (item.supporting_tags) results.push(setFieldValue('supporting_tags', item.supporting_tags).status);
-  if (item.description) results.push(setFieldValue('description', item.description).status);
-  if (item.background_color) results.push(setFieldValue('background_color', item.background_color).status);
+  if (item.title) {
+    const res = await setFieldValue('title', item.title);
+    results.push(res.status);
+    await sleep(randomJitter(500, 1200));
+  }
+  if (item.main_tag) {
+    const res = await setFieldValue('main_tag', item.main_tag);
+    results.push(res.status);
+    await sleep(randomJitter(500, 1200));
+  }
+  if (item.supporting_tags) {
+    const res = await setFieldValue('supporting_tags', item.supporting_tags);
+    results.push(res.status);
+    await sleep(randomJitter(500, 1200));
+  }
+  if (item.description) {
+    const res = await setFieldValue('description', item.description);
+    results.push(res.status);
+    await sleep(randomJitter(500, 1200));
+  }
+  if (item.background_color) {
+    const res = await setFieldValue('background_color', item.background_color);
+    results.push(res.status);
+    await sleep(randomJitter(500, 1200));
+  }
 
   // Enable products
   const enableRes = await enableAllProductCategories();
@@ -647,11 +674,12 @@ async function setTeePublicFields(item) {
       'input[name="title"]',
       'input[placeholder="Title"]'
     ];
-    if (setGenericField(titleSelectors, item.title)) {
+    if (await setGenericField(titleSelectors, item.title)) {
       results.push(`Title: "${item.title}"`);
     } else {
       results.push("Title field not found.");
     }
+    await sleep(randomJitter(500, 1200));
   }
 
   // 2. Main Tag (Exact HTML ID: #design_primary_tag, Name: design[primary_tag])
@@ -662,11 +690,12 @@ async function setTeePublicFields(item) {
       '#design_main_tag',
       'input[name="design[main_tag]"]'
     ];
-    if (setGenericField(mainTagSelectors, item.main_tag)) {
+    if (await setGenericField(mainTagSelectors, item.main_tag)) {
       results.push(`Main Tag: "${item.main_tag}"`);
     } else {
       results.push("Main tag field not found.");
     }
+    await sleep(randomJitter(500, 1200));
   }
 
   // 3. Supporting Tags (Exact HTML ID: #design_secondary_tags, Name: design[secondary_tags])
@@ -691,7 +720,6 @@ async function setTeePublicFields(item) {
       tagsList = tagsList.slice(0, count75);
     }
 
-    // Use comprehensive element finder instead of limited selectors
     const ta = findSupportingTagsElement();
     let suppOk = false;
 
@@ -704,15 +732,7 @@ async function setTeePublicFields(item) {
         suppOk = result && (result.startsWith('ok') || result.startsWith('simulated'));
         if (!suppOk) results.push('Taggle: ' + (result || 'failed'));
       } else {
-        const formatted = tagsList.join(', ');
-        ta.focus();
-        const proto = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-        if (setter) setter.call(ta, formatted); else ta.value = formatted;
-        ta.dispatchEvent(new Event('focus', { bubbles: true }));
-        ta.dispatchEvent(new Event('input', { bubbles: true }));
-        ta.dispatchEvent(new Event('change', { bubbles: true }));
-        ta.dispatchEvent(new Event('blur', { bubbles: true }));
+        await humanTypeIntoField(ta, tagsList.join(', '));
         suppOk = true;
       }
     }
@@ -720,12 +740,9 @@ async function setTeePublicFields(item) {
     if (suppOk) {
       results.push(`Supporting tags set (${tagsList.length} tags).`);
     } else if (!ta) {
-      console.warn("[Auto Uploader] Supporting tags field not found. Dumping page elements for debug:");
-      document.querySelectorAll('textarea, input, [contenteditable="true"]').forEach(el => {
-        console.warn(`  <${el.tagName.toLowerCase()}${el.id ? ' id="'+el.id+'"' : ''}${el.name ? ' name="'+el.name+'"' : ''}${el.placeholder ? ' placeholder="'+el.placeholder+'"' : ''}${el.getAttribute('aria-label') ? ' aria-label="'+el.getAttribute('aria-label')+'"' : ''}>`);
-      });
       results.push("Supporting tags field not found.");
     }
+    await sleep(randomJitter(500, 1200));
   }
 
   // 4. Description
@@ -736,11 +753,12 @@ async function setTeePublicFields(item) {
       'textarea[name="description"]',
       'textarea[placeholder*="Describe your design" i]'
     ];
-    if (setGenericField(descSelectors, item.description)) {
+    if (await setGenericField(descSelectors, item.description)) {
       results.push("Description set.");
     } else {
       results.push("Description field not found.");
     }
+    await sleep(randomJitter(500, 1200));
   }
 
   // 5. Mature Content: NO (Exact HTML ID: #mature_no, Name: design[mature], Value: false)
@@ -749,6 +767,7 @@ async function setTeePublicFields(item) {
                         document.querySelector('#design_is_mature_false') ||
                         document.querySelector('input[name="design[is_mature]"][value="false"]');
   if (matureNoRadio) {
+    await humanScrollTo(matureNoRadio);
     matureNoRadio.checked = true;
     forceClickElement(matureNoRadio);
     matureNoRadio.dispatchEvent(new Event('change', { bubbles: true }));
@@ -760,6 +779,7 @@ async function setTeePublicFields(item) {
     const labels = document.querySelectorAll('.radio-inline, label');
     for (let lbl of labels) {
       if (lbl.textContent.trim().toLowerCase().startsWith('no')) {
+        await humanScrollTo(lbl);
         forceClickElement(lbl);
         const r = lbl.querySelector('input[type="radio"]');
         if (r) r.checked = true;
@@ -770,10 +790,12 @@ async function setTeePublicFields(item) {
     }
     if (!matureSet) results.push("Mature Content radio button not found.");
   }
+  await sleep(randomJitter(400, 800));
 
   // 6. Terms Checkbox
   const termsCb = document.querySelector('#design_terms_and_conditions, input[name="design[terms_and_conditions]"], input[type="checkbox"][name*="terms"]');
   if (termsCb) {
+    await humanScrollTo(termsCb);
     if (!termsCb.checked) {
       termsCb.checked = true;
       forceClickElement(termsCb);
