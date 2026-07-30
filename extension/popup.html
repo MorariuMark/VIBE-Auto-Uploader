@@ -388,7 +388,7 @@
       <div class="logo-badge">AUTO UPLOADER</div>
       <div class="title-group">
         <h1 id="headerTitle">Auto Uploader Platform</h1>
-        <span class="version-tag">Manifest V3 - v1.4.1 (Stealth Edition)</span>
+        <span class="version-tag">Manifest V3 - v1.5.0 (Stealth Edition)</span>
       </div>
     </div>
   </div>
@@ -591,6 +591,14 @@
       <button class="btn btn-gradient" style="width: 100%; margin-top: 4px;" id="tpTriggerApplyAll">⚡ Apply TeePublic Form & Publish</button>
     </div>
 
+    <!-- Account Safety & Warmup Advisory Banner -->
+    <div style="background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 11px; color: #fef08a;">
+      <strong>🛡️ Anti-Ban Account Warmup Advisory:</strong>
+      <div style="margin-top: 4px; color: #cbd5e1; line-height: 1.35;">
+        TeePublic telemetry engines track rapid multi-uploads on new accounts. We recommend capping initial batches to <strong>3–5 items per day</strong> until your account is established.
+      </div>
+    </div>
+
     <!-- Automated Batch Sequence Control -->
     <div class="card">
       <div class="card-title">🚀 TeePublic Batch Sequence</div>
@@ -620,11 +628,21 @@
       </div>
 
       <div class="toggle-wrapper" style="margin-top: 6px;">
-        <span style="font-weight:600; font-size:11px;">Humanized Delays:</span>
+        <span style="font-weight:600; font-size:11px;">Humanized Delays & Mouse Telemetry:</span>
         <label class="switch">
           <input type="checkbox" id="tpHumanizedDelayToggle" checked>
           <span class="slider"></span>
         </label>
+      </div>
+
+      <div class="toggle-wrapper" style="margin-top: 6px; justify-content: space-between; display: flex; align-items: center;">
+        <span style="font-weight:600; font-size:11px;" title="Automatically stop batch after uploading N items for account safety">Batch Safety Cap (Max Items per Run):</span>
+        <select id="tpMaxBatchLimit" style="background: #0f172a; color: #f8fafc; border: 1px solid var(--card-border); border-radius: 4px; padding: 2px 6px; font-size: 11px;">
+          <option value="3" selected>3 Items (Safe Warmup)</option>
+          <option value="5">5 Items (Moderate)</option>
+          <option value="10">10 Items</option>
+          <option value="0">Unlimited</option>
+        </select>
       </div>
 
       <div class="grid-2" style="margin-top: 8px; margin-bottom: 6px;">

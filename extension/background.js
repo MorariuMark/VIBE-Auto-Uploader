@@ -100,11 +100,13 @@ let batchState = {
   autoSave: true,
   filenameAgnostic: false,
   uploadLoop: true,
-  humanizedDelay: true
+  humanizedDelay: true,
+  maxBatchLimit: 3,
+  sessionCount: 0
 };
 
 // Restore state on worker startup
-chrome.storage.local.get(['batchItems', 'batchIndex', 'autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay', 'activePlatform'], (data) => {
+chrome.storage.local.get(['batchItems', 'batchIndex', 'autoSaveWork', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay', 'activePlatform', 'maxBatchLimit'], (data) => {
   if (data.batchItems) batchState.items = data.batchItems;
   if (data.batchIndex) batchState.currentIndex = data.batchIndex;
   if (data.autoSaveWork !== undefined) batchState.autoSave = data.autoSaveWork;
@@ -112,6 +114,7 @@ chrome.storage.local.get(['batchItems', 'batchIndex', 'autoSaveWork', 'filenameA
   if (data.uploadLoop !== undefined) batchState.uploadLoop = data.uploadLoop;
   if (data.humanizedDelay !== undefined) batchState.humanizedDelay = data.humanizedDelay;
   if (data.activePlatform) batchState.platform = data.activePlatform;
+  if (data.maxBatchLimit !== undefined) batchState.maxBatchLimit = data.maxBatchLimit;
 });
 
 // Helper for random 1-8s humanization delay
@@ -146,7 +149,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     batchState.autoSave = request.autoSave !== undefined ? request.autoSave : true;
     batchState.filenameAgnostic = request.filenameAgnostic !== undefined ? request.filenameAgnostic : false;
     batchState.uploadLoop = request.uploadLoop !== undefined ? request.uploadLoop : true;
-    batchState.humanizedDelay = request.humanizedDelay !== undefined ? request.humanizedDelay : true;
+    batchState.maxBatchLimit = request.maxBatchLimit !== undefined ? Number(request.maxBatchLimit) : 3;
+    batchState.sessionCount = 0;
 
     chrome.storage.local.set({
       batchItems: batchState.items,
@@ -155,7 +159,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       filenameAgnostic: batchState.filenameAgnostic,
       uploadLoop: batchState.uploadLoop,
       humanizedDelay: batchState.humanizedDelay,
-      activePlatform: batchState.platform
+      activePlatform: batchState.platform,
+      maxBatchLimit: batchState.maxBatchLimit
     });
 
     processNextBatchItem();
@@ -261,9 +266,16 @@ async function processNextBatchItem() {
 
           notifyPopupProgress(batchState.currentIndex, response?.status || "Form options applied & submitted.");
 
-          // If autoSave was true, proceed to Upload Loop for next item
-          if (batchState.autoSave) {
-            const nextIndex = batchState.currentIndex + 1;
+            batchState.sessionCount = (batchState.sessionCount || 0) + 1;
+
+            // Check Batch Safety Cap limit
+            if (batchState.maxBatchLimit > 0 && batchState.sessionCount >= batchState.maxBatchLimit) {
+              batchState.active = false;
+              const capMsg = `🛡️ Safety Cap Reached! Batch automatically paused after ${batchState.sessionCount} items for account protection.`;
+              notifyPopupProgress(batchState.currentIndex + 1, capMsg);
+              sendHUDToTab(targetTabId, capMsg);
+              return;
+            }
 
             if (nextIndex >= batchState.items.length) {
               batchState.active = false;

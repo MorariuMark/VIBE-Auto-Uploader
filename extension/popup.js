@@ -1,4 +1,4 @@
-// Auto Uploader v1.4.1 - popup.js (Stealth Edition)
+// Auto Uploader v1.5.0 - popup.js (Stealth Edition)
 
 // IndexedDB image store for handling hundreds of image files on-demand without memory limits
 const ImageDB = {
@@ -817,6 +817,7 @@ if (tpStartBatchBtn) {
     const tpUploadLoop = document.getElementById('tpUploadLoopToggle')?.checked ?? true;
     const tpFilenameAgnostic = document.getElementById('tpFilenameAgnosticToggle')?.checked ?? false;
     const tpHumanizedDelay = document.getElementById('tpHumanizedDelayToggle')?.checked ?? true;
+    const tpMaxBatchLimit = Number(document.getElementById('tpMaxBatchLimit')?.value ?? 3);
     chrome.runtime.sendMessage({
       action: 'START_BATCH',
       platform: 'teepublic',
@@ -825,7 +826,8 @@ if (tpStartBatchBtn) {
       autoSave: tpAutoSave,
       uploadLoop: tpUploadLoop,
       filenameAgnostic: tpFilenameAgnostic,
-      humanizedDelay: tpHumanizedDelay
+      humanizedDelay: tpHumanizedDelay,
+      maxBatchLimit: tpMaxBatchLimit
     });
   });
 }

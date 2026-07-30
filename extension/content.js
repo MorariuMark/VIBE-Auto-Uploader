@@ -1,6 +1,6 @@
-// Auto Uploader v1.4.1 - content.js (Stealth Edition)
+// Auto Uploader v1.5.0 - content.js (Stealth Edition)
 
-console.log("%c[Auto Uploader v1.4.1] Content script loaded with stealth humanization.", "color: #ec4899; font-weight: bold;");
+console.log("%c[Auto Uploader v1.5.0] Content script loaded with telemetry protection & stealth mouse simulation.", "color: #ec4899; font-weight: bold;");
 
 // Utility: Sleep helper with random jitter
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -544,17 +544,27 @@ function showOnScreenHUD(msg) {
   hud.innerHTML = `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span> ${msg}`;
 }
 
-// Helper to click element reliably with native MouseEvents
+// Helper to click element reliably with realistic human MouseEvent telemetry (non-zero coordinates, hover events)
 function forceClickElement(elem) {
   if (!elem) return;
   try {
     elem.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     elem.focus?.();
-    elem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+
+    const rect = elem.getBoundingClientRect();
+    const x = Math.max(1, Math.floor(rect.left + (rect.width * (0.2 + Math.random() * 0.6))));
+    const y = Math.max(1, Math.floor(rect.top + (rect.height * (0.2 + Math.random() * 0.6))));
+
+    const opts = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, screenX: x + window.screenX, screenY: y + window.screenY };
+
+    elem.dispatchEvent(new MouseEvent('mouseenter', opts));
+    elem.dispatchEvent(new MouseEvent('mouseover', opts));
+    elem.dispatchEvent(new MouseEvent('mousemove', opts));
+    elem.dispatchEvent(new MouseEvent('mousedown', opts));
     elem.dispatchEvent(new Event('focus', { bubbles: true }));
-    elem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+    elem.dispatchEvent(new MouseEvent('mouseup', opts));
     elem.click();
-    elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    elem.dispatchEvent(new MouseEvent('click', opts));
   } catch (e) {
     console.warn("[Auto Uploader] forceClickElement warning:", e);
   }

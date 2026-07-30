@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Auto Uploader",
-  "version": "1.4.1",
-  "description": "Automated batch asset uploader with stealth humanization, anti-bot event simulation, and customizable delays.",
+  "version": "1.5.0",
+  "description": "Automated batch asset uploader with stealth humanization, telemetry protection, and batch safety caps.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -17,7 +17,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Auto Uploader v1.4.1"
+    "default_title": "Auto Uploader v1.5.0"
   },
   "background": {
     "service_worker": "background.js"
