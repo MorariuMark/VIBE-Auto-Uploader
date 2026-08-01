@@ -1,33 +1,31 @@
-# Auto Uploader v1.3.0 — Redbubble & TeePublic Automation Suite
+# Auto Uploader v1.5.1 — Redbubble & TeePublic Automation Suite
 
 [![Manifest V3](https://img.shields.io/badge/Chrome_Extension-Manifest_V3-brightgreen.svg)](https://developer.chrome.com/docs/extensions/mv3/intro/)
+[![Linux Compatible](https://img.shields.io/badge/OS-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)]()
 
-A Chrome/Brave browser extension that automates the full design upload workflow for **Redbubble** and **TeePublic** — eliminating tedious manual form-filling, product enabling, and publishing.
+A cross-platform Chrome / Brave / Chromium browser extension (compatible with Linux, macOS, and Windows) that automates the full design upload workflow for **Redbubble** and **TeePublic** — incorporating anti-bot telemetry protection, humanized typing simulation, and customizable safety caps.
 
 ---
 
 ## Features
 
-- **Dual-Platform**: Supports both Redbubble (`/portfolio/images/new`) and TeePublic (`/teepublic.com/designs/*/edit`)
-- **Batch Loop**: Automatically fills forms, publishes, clicks "Upload Art", uploads the next image, and repeats until the folder is done
-- **Automatic Field Population**: Title, main tag, supporting tags (including Taggle widget API), description, background color, mature content, terms
-- **Product Toggle Engine**: Enables all OFF product categories and sets default color swatches + white background (TeePublic)
-- **Image Upload**: Attaches design images via DataTransfer API (no file dialog)
-- **JSON & CSV Input**: Metadata via JSON, raw JSON paste, or CSV
-- **Filename Agnostic Mode**: Skip PNG filename matching, attach any available image
-- **Humanized Delays**: Random 1-8s pauses between actions to evade anti-bot detection
-- **On-Screen HUD**: Visual feedback overlay during automation
-- **Pause/Stop/Restart**: Full batch control with persistent progress
+- **Cross-Platform Compatibility**: Fully compatible with Linux, macOS, and Windows on Chrome, Brave, Chromium, Vivaldi, and Edge.
+- **Dual-Platform Support**: Automates uploads on Redbubble (`/portfolio/images/new`) and TeePublic (`/design/new` & dashboard edit pages).
+- **Stealth & Telemetry Protection**: Simulates human character typing (15-40ms), non-zero `clientX`/`clientY` mouse events, and smooth scrolling to pass DataDog RUM (`DD_RUM`) anti-bot checks.
+- **Batch Safety Caps**: Built-in 3–5 design daily upload cap presets to protect new accounts during account warmup periods.
+- **Randomized Post-Publish Cooldowns**: 30-60s (TeePublic) and 45-90s (Redbubble) stealth pauses after design submission.
+- **Batch Loop**: Automatically fills forms, enables products, attaches images, publishes, and loops through batch folders.
+- **IndexedDB Image Storage**: Zero-RAM-overhead storage capable of handling hundreds of high-res PNG designs on Linux and other operating systems.
 
 ---
 
 ## Quick Start
 
-1. Open `chrome://extensions` or `brave://extensions`
-2. Enable **Developer mode** (top-right)
-3. Click **Load unpacked** and select the `extension` folder
-4. Pin **Auto Uploader v1.3.0** to the toolbar
-5. Navigate to your platform's upload/edit page, open the popup, load a folder (or JSON/CSV), and click **Start Auto**
+1. Open `chrome://extensions` or `brave://extensions` in your Linux / Chromium browser.
+2. Enable **Developer mode** (top-right toggle).
+3. Click **Load unpacked** and select the `extension/` directory.
+4. Pin **Auto Uploader v1.5.1** to your browser toolbar.
+5. Log into your TeePublic or Redbubble account, open the extension popup, select your design folder, and click **Start Auto**.
 
 ### Redbubble Flow
 
