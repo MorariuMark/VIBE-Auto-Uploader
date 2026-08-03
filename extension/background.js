@@ -17,6 +17,22 @@ const ImageDB = {
       };
       req.onsuccess = (e) => resolve(e.target.result);
       req.onerror = (e) => reject(e.target.error);
+  async clear() {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      tx.objectStore(this.storeName).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  },
+  async saveImage(filename, fileOrBlob) {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      tx.objectStore(this.storeName).put(fileOrBlob, filename.toLowerCase());
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
     });
   },
   async getRawBlob(filename) {
@@ -466,7 +482,82 @@ function notifyPopupProgress(index, status) {
     index,
     status
   }).catch(() => {
-    // Ignore error if popup is closed
   });
 }
+
+// Live Media Hub Space Auto-Sync & Popup Window Opener
+let lastBackgroundSyncId = null;
+
+async function checkBackgroundMediaHubSync(force = false) {
+  try {
+    const resp = await fetch('http://localhost:3001/api/plugins/vibe-auto-uploader/latest-synced');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.success || !data.items || data.items.length === 0) return;
+
+    const syncKey = `${data.sessionName}_${data.items.length}_${data.lastSyncedTime || ''}`;
+    if (!force && lastBackgroundSyncId === syncKey) return; // Already synced this version
+
+    lastBackgroundSyncId = syncKey;
+    console.log(`[Media Hub Bridge] Syncing session "${data.sessionName}" (${data.items.length} items)...`);
+
+    // Download & index all image blobs into IndexedDB
+    await ImageDB.clear();
+    let indexedImages = 0;
+
+    for (const item of data.items) {
+      if (item.image_filename) {
+        try {
+          const imgUrl = `http://localhost:3001/api/plugins/vibe-auto-uploader/image-blob?session=${encodeURIComponent(data.sessionName)}&file=${encodeURIComponent(item.image_filename)}`;
+          const imgResp = await fetch(imgUrl);
+          if (imgResp.ok) {
+            const blob = await imgResp.blob();
+            await ImageDB.saveImage(item.image_filename, blob);
+            indexedImages++;
+          }
+        } catch (imgErr) {
+          console.warn('[Media Hub Bridge] Image index error:', item.image_filename, imgErr);
+        }
+      }
+    }
+
+    batchState.items = data.items;
+    batchState.currentIndex = 0;
+
+    await chrome.storage.local.set({
+      batchItems: data.items,
+      batchIndex: 0,
+      syncedSessionName: data.sessionName,
+      syncedImageCount: indexedImages
+    });
+
+    console.log(`[Media Hub Bridge] Successfully indexed ${indexedImages} images & ${data.items.length} items.`);
+
+    // Auto-open Chrome Extension Popup window on screen!
+    try {
+      chrome.windows.create({
+        url: chrome.runtime.getURL('popup.html'),
+        type: 'popup',
+        width: 460,
+        height: 680,
+        focused: true
+      });
+    } catch (winErr) {
+      console.warn('[Media Hub Bridge] Window pop error:', winErr.message);
+    }
+  } catch (err) {
+    // Server offline or no sync active
+  }
+}
+
+// Background poll interval (2 seconds)
+setInterval(checkBackgroundMediaHubSync, 2000);
+checkBackgroundMediaHubSync();
+
+// External web communication listener from http://localhost:3001
+chrome.runtime.onMessageExternal?.addListener((request, sender, sendResponse) => {
+  console.log('[Auto Uploader Background] Received external message from VIBE Media Hub Space:', request);
+  checkBackgroundMediaHubSync(true);
+  sendResponse({ success: true, message: 'Sync triggered directly from web app' });
+});
 

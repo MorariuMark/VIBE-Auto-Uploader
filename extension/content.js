@@ -1,4 +1,4 @@
-// Auto Uploader v1.5.1 - content.js (Stealth Edition)
+﻿// Auto Uploader v1.5.1 - content.js (Stealth Edition)
 
 console.log("%c[Auto Uploader v1.5.1] Content script loaded with telemetry protection & stealth mouse simulation.", "color: #ec4899; font-weight: bold;");
 
@@ -502,7 +502,7 @@ async function applyAllFormAndOptions(item, autoSave, imagePayload = null) {
                       document.querySelector('input[type="submit"][id*="submit"]');
     if (submitBtn) {
       submitBtn.click();
-      results.push("🚀 Save Work (#submit-work) clicked automatically!");
+      results.push("ðŸš€ Save Work (#submit-work) clicked automatically!");
     } else {
       results.push("Save Work button not found.");
     }
@@ -572,7 +572,7 @@ function forceClickElement(elem) {
 
 // 11. Upload Loop Helpers (Post-Publish Navigation with Visual Highlights)
 function clickAddAnotherDesign() {
-  showOnScreenHUD("👉 Looking for 'Add another design' link...");
+  showOnScreenHUD("ðŸ‘‰ Looking for 'Add another design' link...");
   const links = document.querySelectorAll('a, button, span');
   for (let link of links) {
     const txt = (link.textContent || '').trim().toLowerCase();
@@ -580,20 +580,20 @@ function clickAddAnotherDesign() {
     if (txt.includes('add another design') || href.includes('/portfolio/images/new')) {
       link.style.outline = "3px solid #22c55e";
       link.style.borderRadius = "4px";
-      showOnScreenHUD("✅ Clicked 'Add another design' link!");
+      showOnScreenHUD("âœ… Clicked 'Add another design' link!");
       forceClickElement(link);
       return { status: "Clicked 'Add another design' link successfully." };
     }
   }
 
   // Fallback: direct navigation to new work URL
-  showOnScreenHUD("➡️ Navigating to 'Add New Work'...");
+  showOnScreenHUD("âž¡ï¸ Navigating to 'Add New Work'...");
   window.location.href = "https://www.redbubble.com/portfolio/images/new";
   return { status: "Redirected to 'Add new work' page directly." };
 }
 
 async function clickUploadNewWork(imagePayload = null) {
-  showOnScreenHUD("👉 Looking for 'Upload new work' card...");
+  showOnScreenHUD("ðŸ‘‰ Looking for 'Upload new work' card...");
 
   // 1. Locate and click 'Upload new work' card
   const candidates = document.querySelectorAll('div, button, a, span, label, h1, h2, h3');
@@ -604,7 +604,7 @@ async function clickUploadNewWork(imagePayload = null) {
       const parentCard = elem.closest('div, a, button, label') || elem;
       parentCard.style.outline = "3px solid #8b5cf6";
       parentCard.style.borderRadius = "8px";
-      showOnScreenHUD("✅ Clicked 'Upload new work' card!");
+      showOnScreenHUD("âœ… Clicked 'Upload new work' card!");
       forceClickElement(parentCard);
       clickedCard = true;
       break;
@@ -622,10 +622,10 @@ async function clickUploadNewWork(imagePayload = null) {
   }
 
   if (imagePayload && imagePayload.base64Data) {
-    showOnScreenHUD(`🖼️ Auto-uploading saved image '${imagePayload.filename}'...`);
+    showOnScreenHUD(`ðŸ–¼ï¸ Auto-uploading saved image '${imagePayload.filename}'...`);
     await sleep(600);
     const attachRes = await attachImageFile(imagePayload.filename, imagePayload.mimeType, imagePayload.base64Data);
-    showOnScreenHUD(`✅ Attached image (${imagePayload.filename})! Ready for next JSON.`);
+    showOnScreenHUD(`âœ… Attached image (${imagePayload.filename})! Ready for next JSON.`);
     return { status: `Clicked 'Upload new work' and auto-attached image '${imagePayload.filename}'.` };
   }
 
@@ -633,7 +633,7 @@ async function clickUploadNewWork(imagePayload = null) {
   const fileInput = document.querySelector('input[type="file"]');
   if (fileInput) {
     fileInput.click();
-    showOnScreenHUD("✅ Triggered file uploader directly!");
+    showOnScreenHUD("âœ… Triggered file uploader directly!");
     return { status: "Triggered file input directly." };
   }
 
@@ -907,7 +907,7 @@ function publishTeePublicForm(autoSave) {
                        document.querySelector('button[class*="publish" i]');
     if (publishBtn) {
       publishBtn.click();
-      return { status: "🚀 TeePublic PUBLISH button clicked!" };
+      return { status: "ðŸš€ TeePublic PUBLISH button clicked!" };
     }
     return { status: "Publish button not found." };
   }
@@ -916,27 +916,27 @@ function publishTeePublicForm(autoSave) {
 
 // 5. Click TeePublic 'Upload Art' button (after publish, on the design/dashboard page)
 function clickTeePublicUploadArt() {
-  showOnScreenHUD("👉 Looking for 'Upload Art' button...");
+  showOnScreenHUD("ðŸ‘‰ Looking for 'Upload Art' button...");
   var candidates = document.querySelectorAll('a, button, span, div');
   for (var el of candidates) {
     var txt = (el.textContent || '').trim().toLowerCase();
     if (txt === 'upload art' || (txt.includes('upload art') && txt.length < 25)) {
       el.style.outline = "3px solid #22c55e";
       el.style.borderRadius = "4px";
-      showOnScreenHUD("✅ Clicked 'Upload Art'!");
+      showOnScreenHUD("âœ… Clicked 'Upload Art'!");
       forceClickElement(el);
       return { status: "Clicked 'Upload Art' button." };
     }
   }
   // Fallback: navigate directly to uploader
-  showOnScreenHUD("➡️ Navigating to TeePublic uploader...");
+  showOnScreenHUD("âž¡ï¸ Navigating to TeePublic uploader...");
   window.location.href = "https://www.teepublic.com/uploader";
   return { status: "Redirected to TeePublic uploader." };
 }
 
 // 6. Click TeePublic file upload button & attach next image
 async function clickTeePublicUploadFile(imagePayload) {
-  showOnScreenHUD("👉 Looking for TeePublic file upload area...");
+  showOnScreenHUD("ðŸ‘‰ Looking for TeePublic file upload area...");
 
   if (!imagePayload || !imagePayload.base64Data) {
     return { status: "No image payload provided." };
@@ -954,7 +954,7 @@ async function clickTeePublicUploadFile(imagePayload) {
     fileInput.files = dt.files;
     fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     fileInput.dispatchEvent(new Event('input', { bubbles: true }));
-    showOnScreenHUD("✅ Uploaded image '" + imagePayload.filename + "'!");
+    showOnScreenHUD("âœ… Uploaded image '" + imagePayload.filename + "'!");
     return { status: "Uploaded image '" + imagePayload.filename + "' via file input." };
   }
 
@@ -964,7 +964,7 @@ async function clickTeePublicUploadFile(imagePayload) {
                   document.querySelector('button:has(svg), button:has(.icon)');
   if (uploadBtn) {
     forceClickElement(uploadBtn);
-    showOnScreenHUD("✅ Clicked upload button.");
+    showOnScreenHUD("âœ… Clicked upload button.");
     return { status: "Clicked upload button (manual file selection needed)." };
   }
 
@@ -1233,7 +1233,7 @@ async function autoPasteTeePublicTags(supporting_tags) {
     ta.dispatchEvent(new Event('blur', { bubbles: true }));
   }
 
-  return { status: `🏷️ Auto-pasted ${tagsList.length} tags.` };
+  return { status: `ðŸ·ï¸ Auto-pasted ${tagsList.length} tags.` };
 }
 
 // Message Listener from Popup or Background Service Worker
@@ -1297,7 +1297,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
       });
       console.table(els);
-      res = { status: `🔍 Dumped ${els.length} form elements to console (F12 → Console tab).` };
+      res = { status: `ðŸ” Dumped ${els.length} form elements to console (F12 â†’ Console tab).` };
     } else if (request.action === 'TP_DEBUG_PRODUCTS') {
       const items = [];
       document.querySelectorAll('[class*="product" i], [id*="product" i], [name*="product" i]').forEach(el => {
@@ -1315,11 +1315,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       document.querySelectorAll('.product-grid, .products-table, [class*="product-list"], [class*="grid"]').forEach(el => {
         console.log('[TP_DEBUG_PRODUCTS] Container:', el.className, el.id, 'children:', el.children.length);
       });
-      res = { status: `🔍 Dumped ${items.length} product elements to console.` };
+      res = { status: `ðŸ” Dumped ${items.length} product elements to console.` };
     }
 
     sendResponse(res);
   })();
 
   return true; // Keep async response channel open
+});
+
+// Listener for VIBE Media Hub Space window sync events
+window.addEventListener("message", (event) => {
+  if (event.data && (event.data.type === "VIBE_MEDIA_HUB_SYNC" || event.data.type === "VIBE_SYNC_NOW")) {
+    console.log("%c[Auto Uploader] Received Sync event from VIBE Media Hub Space:", "color: #10b981; font-weight: bold;", event.data);
+    chrome.runtime.sendMessage({
+      action: "TRIGGER_MEDIA_HUB_SYNC",
+      sessionName: event.data.sessionName
+    });
+  }
 });

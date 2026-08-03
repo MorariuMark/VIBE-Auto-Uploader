@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auto Uploader",
-  "version": "1.5.1",
+  "version": "1.5.7",
   "description": "Automated batch asset uploader with stealth humanization, telemetry protection, and dual-platform safety caps.",
   "permissions": [
     "activeTab",
@@ -13,11 +13,36 @@
     "https://*.redbubble.com/*",
     "http://*.redbubble.com/*",
     "https://*.teepublic.com/*",
-    "http://*.teepublic.com/*"
+    "http://*.teepublic.com/*",
+    "http://localhost:3001/*",
+    "http://localhost/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:3001/*",
+      "http://localhost/*"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html",
+        "popup.js",
+        "content.js",
+        "background.js",
+        "*.png",
+        "*.jpg",
+        "*.css",
+        "*.svg"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Auto Uploader v1.5.1"
+    "default_title": "Auto Uploader v1.5.3"
   },
   "background": {
     "service_worker": "background.js"
@@ -27,7 +52,9 @@
       "matches": [
         "https://*.redbubble.com/portfolio/images/new*",
         "https://*.redbubble.com/portfolio/images/*",
-        "https://*.teepublic.com/*"
+        "https://*.teepublic.com/*",
+        "http://localhost:3001/*",
+        "http://localhost/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",

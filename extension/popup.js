@@ -162,7 +162,11 @@ function logMsg(msg) {
 
 // Restore saved settings on popup open
 document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.local.get(['autoSaveWork', 'autoStartFolder', 'filenameAgnostic', 'uploadLoop', 'humanizedDelay', 'tpUploadLoop', 'tpFilenameAgnostic', 'batchItems', 'batchIndex'], (data) => {
+  chrome.storage.local.get([
+    'autoSaveWork', 'autoStartFolder', 'filenameAgnostic', 'uploadLoop',
+    'humanizedDelay', 'tpUploadLoop', 'tpFilenameAgnostic', 'batchItems',
+    'batchIndex', 'syncedSessionName', 'syncedImageCount'
+  ], (data) => {
     if (data.autoSaveWork !== undefined) {
       autoSaveToggle.checked = data.autoSaveWork;
     }
@@ -184,12 +188,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.tpFilenameAgnostic !== undefined && tpFilenameAgnosticToggle) {
       tpFilenameAgnosticToggle.checked = data.tpFilenameAgnostic;
     }
+    if (data.syncedSessionName) {
+      if (folderFileLabel) folderFileLabel.textContent = `📁 ${data.syncedSessionName}`;
+      if (tpFolderFileLabel) tpFolderFileLabel.textContent = `📁 ${data.syncedSessionName}`;
+    }
+    if (data.syncedImageCount !== undefined) {
+      if (pngFilesLabel) pngFilesLabel.textContent = `🖼️ ${data.syncedImageCount} Images Indexed`;
+      if (tpPngFilesLabel) tpPngFilesLabel.textContent = `🖼️ ${data.syncedImageCount} Images Indexed`;
+    }
     if (data.batchItems && data.batchItems.length > 0) {
       parsedDataset = data.batchItems;
       currentIndex = data.batchIndex || 0;
       updateInspector();
       logMsg(`Restored batch of ${parsedDataset.length} items from storage.`);
     }
+
+    checkMediaHubSync(true);
   });
 });
 
@@ -865,6 +879,98 @@ document.getElementById('tpRestartBatchBtn')?.addEventListener('click', () => {
     filenameAgnostic: tpFilenameAgnostic,
     humanizedDelay: tpHumanizedDelay
   });
+});
+
+// Open VIBE Media Hub Space directly from Extension
+document.getElementById('btnMediaHub')?.addEventListener('click', () => {
+  if (typeof chrome !== 'undefined' && chrome.tabs) {
+    chrome.tabs.create({ url: 'http://localhost:3001' });
+  } else {
+    window.open('http://localhost:3001', '_blank');
+  }
+});
+
+// Auto-check for VIBE Media Hub Space synced output data on popup open and live interval
+let lastSyncedSessionId = null;
+
+async function checkMediaHubSync(force = false) {
+  try {
+    const resp = await fetch('http://localhost:3001/api/plugins/vibe-auto-uploader/latest-synced');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.success || !data.items || data.items.length === 0) return;
+
+    const syncKey = `${data.sessionName}_${data.items.length}_${data.lastSyncedTime || ''}`;
+    if (!force && lastSyncedSessionId === syncKey) return; // Already synced this exact version
+
+    lastSyncedSessionId = syncKey;
+
+    const folderLabel = document.getElementById('folderFileLabel');
+    const tpFolderLabel = document.getElementById('tpFolderFileLabel');
+    const pngLabel = document.getElementById('pngFilesLabel');
+    const tpPngLabel = document.getElementById('tpPngFilesLabel');
+
+    if (folderLabel) folderLabel.textContent = `📁 ${data.sessionName}`;
+    if (tpFolderLabel) tpFolderLabel.textContent = `📁 ${data.sessionName}`;
+
+    logMsg(`Scanning synced folder "${data.sessionName}" (${data.items.length} items)...`);
+    if (typeof tpLogMsg === 'function') tpLogMsg(`Scanning synced folder "${data.sessionName}" (${data.items.length} items)...`);
+
+    // Fetch and index image blobs into IndexedDB for automatic uploading
+    await ImageDB.clear();
+    let indexedImages = 0;
+
+    for (const item of data.items) {
+      if (item.image_filename) {
+        try {
+          const imgUrl = `http://localhost:3001/api/plugins/vibe-auto-uploader/image-blob?session=${encodeURIComponent(data.sessionName)}&file=${encodeURIComponent(item.image_filename)}`;
+          const imgResp = await fetch(imgUrl);
+          if (imgResp.ok) {
+            const blob = await imgResp.blob();
+            await ImageDB.saveImage(item.image_filename, blob);
+            indexedImages++;
+          }
+        } catch (imgErr) {
+          console.warn('Error indexing image:', item.image_filename, imgErr);
+        }
+      }
+    }
+
+    if (pngLabel) pngLabel.textContent = `🖼️ ${indexedImages} Images Indexed`;
+    if (tpPngLabel) tpPngLabel.textContent = `🖼️ ${indexedImages} Images Indexed`;
+
+    parsedDataset = data.items;
+    currentIndex = 0;
+    
+    await chrome.storage.local.set({
+      batchItems: parsedDataset,
+      batchIndex: 0,
+      syncedSessionName: data.sessionName,
+      syncedImageCount: indexedImages
+    });
+
+    updateInspector();
+
+    const successMsg = `✅ Auto-matched folder "${data.sessionName}": ${parsedDataset.length} JSON item(s) & ${indexedImages} image(s).`;
+    logMsg(successMsg);
+    if (typeof tpLogMsg === 'function') tpLogMsg(successMsg);
+
+  } catch (err) {
+    // Server offline or no sync active
+  }
+}
+
+// Initial check & 1-second live sync interval
+checkMediaHubSync(true);
+setInterval(checkMediaHubSync, 1000);
+
+// Minimize panel button handler
+document.getElementById('btnMinimizePanel')?.addEventListener('click', () => {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'TOGGLE_AUTO_UPLOADER_MINIMIZE' }, '*');
+  } else if (typeof chrome !== 'undefined' && chrome.windows) {
+    window.close();
+  }
 });
 
 
